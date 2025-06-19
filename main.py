@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import random
 import uuid
+from openai import OpenAI # Ensure openai library is installed: pip install openai
 
 # Set page configuration
 st.set_page_config(
@@ -85,6 +86,59 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# --- NVIDIA API Client Initialization ---
+# WARNING: Hardcoding API keys is a security risk. Use secrets management in production.
+client = OpenAI(
+  base_url = "https://integrate.api.nvidia.com/v1",
+  api_key = "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"
+)
+
+def generate_llm_response(user_prompt, dashboard_state):
+    """
+    Generates a response from the LLM based on the user prompt and dashboard state.
+    Streams the response.
+    """
+    context = f"""
+You are VIRA, an AI assistant for a Voice of Customer (VOC) Dashboard.
+Your role is to help users understand the dashboard data and insights.
+Be concise and helpful.
+
+Here is a summary of the current dashboard view based on selected filters:
+- Selected Time Period for Health Score: {dashboard_state.get('time_period_label', 'N/A')}
+- Customer Health Score: {dashboard_state.get('score', 'N/A')}% (Trend: {dashboard_state.get('trend', 'N/A')} {dashboard_state.get('trend_label', 'N/A')})
+
+Live Chart Summaries (approximations based on current filters):
+- Sentiment Distribution: Positive: {dashboard_state.get('sentiment_summary', {}).get('Positive', 'N/A')}, Neutral: {dashboard_state.get('sentiment_summary', {}).get('Neutral', 'N/A')}, Negative: {dashboard_state.get('sentiment_summary', {}).get('Negative', 'N/A')}.
+- Intent Distribution: {'; '.join([f"{k}: {v}" for k, v in dashboard_state.get('intent_summary', {}).items()]) if dashboard_state.get('intent_summary') else 'N/A'}.
+- Volume Trend: {dashboard_state.get('volume_summary', 'N/A')}.
+
+General Dashboard Information (these are examples, specific alerts/hotspots may vary and should be checked on their respective cards):
+- Critical Alerts: May highlight issues like "Sudden Spike in Negative Sentiment" or "High Churn Risk".
+- Predictive Hotspots: Could point to "Policy Confusion" or "UI Issues".
+- Top Customer Themes (Positive): Examples include "Fast Customer Service", "Easy Mobile Banking".
+- Top Customer Themes (Negative): Examples include "App Technical Issues", "Long Wait Times".
+- Opportunity Radar: Identifies areas like "Delightful Features", "Cross-Sell Opportunities", "Service Excellence".
+
+Based on this context and your general knowledge, please answer the user's question.
+If the question is about specific details not covered in this summary, you can suggest the user check the relevant dashboard section.
+User question: "{user_prompt}"
+"""
+    try:
+        completion = client.chat.completions.create(
+            model="deepseek-ai/deepseek-r1-distill-qwen-32b",
+            messages=[{"role": "user", "content": context}],
+            temperature=0.5, # Adjusted slightly for more factual responses
+            top_p=0.7,
+            max_tokens=1024, # Sufficient for chat responses
+            stream=True
+        )
+        for chunk in completion:
+            if chunk.choices[0].delta.content is not None:
+                yield chunk.choices[0].delta.content
+    except Exception as e:
+        st.error(f"LLM API Error: {e}") # Show error in Streamlit UI as well
+        yield f"Sorry, I encountered an error while trying to connect to the AI service: {str(e)}. Please check the console or try again later."
 
 # Generate health score data
 def generate_health_score_data():
@@ -171,7 +225,7 @@ if page == "Dashboard":
         time_period = st.selectbox(
             "TIME",
             ["All Periods", "Today", "This Week", "This Month", "This Quarter", "This Year"],
-            index=3,
+            index=3, # Default to "This Month"
             key="time_filter"
         )
     with col2:
@@ -198,19 +252,21 @@ if page == "Dashboard":
         "This Quarter": "quarter",
         "This Year": "year"
     }
-    selected_time = time_period_map.get(time_period, "month")
-    product_filter = ["all"] if "All Products" in products else [p.lower().replace(" ", "_") for p in products]
-    channel_filter = ["all"] if "All Channels" in channels else [c.lower().replace(" ", "_") for c in channels]
+    selected_time_key = time_period_map.get(time_period, "month") # e.g. "month"
+    product_filter_active = ["all"] if "All Products" in products else [p.lower().replace(" ", "_") for p in products]
+    channel_filter_active = ["all"] if "All Channels" in channels else [c.lower().replace(" ", "_") for c in channels]
 
-    # Multipliers for filtering
-    product_multiplier = 1.0 if "all" in product_filter else 0.8
-    channel_multiplier = 1.0 if "all" in channel_filter else 0.9
-    if "social_media" in channel_filter and "all" not in channel_filter:
+    # Multipliers for filtering (example effect)
+    product_multiplier = 1.0 if "all" in product_filter_active else 0.8
+    channel_multiplier = 1.0 if "all" in channel_filter_active else 0.9
+    if "social_media" in channel_filter_active and "all" not in channel_filter_active:
         channel_multiplier = 0.6
 
     # Health score data
-    health_score_data = generate_health_score_data()
-    current_health_data = health_score_data.get(selected_time, health_score_data["month"])
+    health_score_data_source = generate_health_score_data()
+    current_health_data = health_score_data_source.get(selected_time_key, health_score_data_source["month"]).copy() # Use .copy() to avoid modifying the source
+    current_health_data['time_period_label'] = time_period # Add display name of time period, e.g. "This Month"
+
 
     # Dashboard widgets
     st.markdown("## Dashboard Widgets")
@@ -220,7 +276,7 @@ if page == "Dashboard":
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Customer Health Score")
         health_view = st.radio("View", ["Real-time", "Daily Trend", "Comparison"], horizontal=True, key="health_view")
-        
+
         score_col1, score_col2 = st.columns([1, 2])
         with score_col1:
             st.markdown(f'<div class="metric-value">{current_health_data["score"]}%</div>', unsafe_allow_html=True)
@@ -229,9 +285,8 @@ if page == "Dashboard":
             trend_class = "metric-trend-positive" if current_health_data["trend_positive"] else "metric-trend-negative"
             st.markdown(f'<div class="{trend_class}">{trend_icon} {current_health_data["trend"]} {current_health_data["trend_label"]}</div>', unsafe_allow_html=True)
 
-        # Health trend chart
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
+        fig_health = go.Figure()
+        fig_health.add_trace(go.Scatter(
             x=current_health_data["labels"],
             y=current_health_data["values"],
             mode='lines',
@@ -240,7 +295,7 @@ if page == "Dashboard":
             line=dict(color='#34c759', width=2),
             name='Health Score'
         ))
-        fig.update_layout(
+        fig_health.update_layout(
             height=150,
             margin=dict(l=0, r=0, t=10, b=0),
             paper_bgcolor='rgba(0,0,0,0)',
@@ -248,7 +303,7 @@ if page == "Dashboard":
             xaxis=dict(showgrid=False, showline=False, showticklabels=True, tickfont=dict(color='#4a4a4f', size=9)),
             yaxis=dict(showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(color='#4a4a4f', size=9), range=[min(current_health_data["values"]) - 2, max(current_health_data["values"]) + 2])
         )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
         st.markdown("Overall customer satisfaction is strong, showing a positive trend this month.")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -261,7 +316,7 @@ if page == "Dashboard":
         - Mobile App Update X.Y: 45% negative  
         - Volume: 150 mentions / 3 hrs  
         - Issues: Login Failed, App Crashing  
-        
+
         **High Churn Risk Pattern Detected**  
         - Pattern: Repeated Billing Errors - Savings  
         - 12 unique customer patterns  
@@ -279,15 +334,49 @@ if page == "Dashboard":
         - Medium Impact  
         - 'Confused' Language: +30% WoW  
         - Keywords: "don't understand", "how it works"  
-        
+
         **Intl. Transfer UI Issues**  
         - Low Impact  
         - Task Abandonment: +15% MoM  
         - Negative sentiment: 'Beneficiary Setup'  
-        
+
         Monitor emerging confusion on overdrafts and usability for international transfers.
         """)
         st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- Prepare data for charts AND LLM context ---
+    # Sentiment Data
+    _temp_sentiment_values = {
+        'Positive': (60 + random.random() * 10) * product_multiplier,
+        'Neutral': (20 + random.random() * 5) * product_multiplier,
+        'Negative': (10 + random.random() * 5) * product_multiplier
+    }
+    _total_sentiment = sum(_temp_sentiment_values.values()) if sum(_temp_sentiment_values.values()) > 0 else 1 # Avoid division by zero
+    live_sentiment_summary_for_llm = {k: f"{(v/_total_sentiment*100):.1f}%" for k, v in _temp_sentiment_values.items()}
+    sentiment_data_for_chart = pd.DataFrame({
+        'Category': list(_temp_sentiment_values.keys()),
+        'Value': list(_temp_sentiment_values.values())
+    })
+
+    # Intent Data
+    _temp_intent_values = {
+        'Info Seeking': (35 + random.random() * 10) * product_multiplier * channel_multiplier,
+        'Complaint': (20 + random.random() * 5) * product_multiplier * channel_multiplier,
+        'Service Request': (20 + random.random() * 5) * product_multiplier * channel_multiplier,
+        'Feedback': (10 + random.random() * 5) * product_multiplier * channel_multiplier
+    }
+    _total_intent = sum(_temp_intent_values.values()) if sum(_temp_intent_values.values()) > 0 else 1 # Avoid division by zero
+    live_intent_summary_for_llm = {k: f"{(v/_total_intent*100):.1f}% (approx {v:.0f} mentions)" for k, v in _temp_intent_values.items()}
+    intent_data_for_chart = pd.DataFrame({
+        'Intent': list(_temp_intent_values.keys()),
+        'Value': list(_temp_intent_values.values())
+    })
+
+    # Volume Data
+    _volume_data_points = [(400 + random.random() * 300 + i * 5) * channel_multiplier for i in range(30)]
+    live_volume_summary_for_llm = f"Volume trend over 30 days: current day approx {int(_volume_data_points[-1])} interactions, min approx {int(min(_volume_data_points))}, max approx {int(max(_volume_data_points))}"
+    vol_df_for_chart = pd.DataFrame({'Day': list(range(1, 31)), 'Volume': _volume_data_points})
+
 
     # Customer Voice Snapshot
     st.markdown("## Customer Voice Snapshot")
@@ -297,51 +386,32 @@ if page == "Dashboard":
     with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Sentiment Distribution")
-        sentiment_data = pd.DataFrame({
-            'Category': ['Positive', 'Neutral', 'Negative'],
-            'Value': [
-                (60 + random.random() * 10) * product_multiplier,
-                (20 + random.random() * 5) * product_multiplier,
-                (10 + random.random() * 5) * product_multiplier
-            ]
-        })
-        fig = px.pie(sentiment_data, values='Value', names='Category', color='Category', color_discrete_map={'Positive': '#34c759', 'Neutral': '#a2a2a7', 'Negative': '#ff3b30'}, hole=0.75)
-        fig.update_layout(height=230, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5, font=dict(size=10)), showlegend=True)
-        fig.update_traces(textinfo='percent', textfont_size=10)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        fig_sentiment = px.pie(sentiment_data_for_chart, values='Value', names='Category', color='Category', color_discrete_map={'Positive': '#34c759', 'Neutral': '#a2a2a7', 'Negative': '#ff3b30'}, hole=0.75)
+        fig_sentiment.update_layout(height=230, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5, font=dict(size=10)), showlegend=True)
+        fig_sentiment.update_traces(textinfo='percent', textfont_size=10)
+        st.plotly_chart(fig_sentiment, use_container_width=True, config={'displayModeBar': False})
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Intent Distribution")
-        intent_data = pd.DataFrame({
-            'Intent': ['Info Seeking', 'Complaint', 'Service Request', 'Feedback'],
-            'Value': [
-                35 + random.random() * 10,
-                20 + random.random() * 5,
-                20 + random.random() * 5,
-                10 + random.random() * 5
-            ]
-        })
-        fig = px.bar(intent_data, y='Intent', x='Value', orientation='h', color='Intent', color_discrete_map={'Info Seeking': '#007aff', 'Complaint': '#ff9500', 'Service Request': '#5856d6', 'Feedback': '#ffcc00'})
-        fig.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True), yaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True), showlegend=False)
-        fig.update_traces(marker_line_width=0, marker_line_color='rgba(0,0,0,0)', width=0.6)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        fig_intent = px.bar(intent_data_for_chart, y='Intent', x='Value', orientation='h', color='Intent', color_discrete_map={'Info Seeking': '#007aff', 'Complaint': '#ff9500', 'Service Request': '#5856d6', 'Feedback': '#ffcc00'})
+        fig_intent.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True), yaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True), showlegend=False)
+        fig_intent.update_traces(marker_line_width=0, marker_line_color='rgba(0,0,0,0)', width=0.6)
+        st.plotly_chart(fig_intent, use_container_width=True, config={'displayModeBar': False})
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col3:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Volume Trend (30 Days)")
-        days = list(range(1, 31))
-        volume_data = [(400 + random.random() * 300 + i * 5) * channel_multiplier for i in range(30)]
-        vol_df = pd.DataFrame({'Day': days, 'Volume': volume_data})
-        fig = px.line(vol_df, x='Day', y='Volume', line_shape='spline')
-        fig.update_traces(line_color='#007aff', fill='tozeroy', fillcolor='rgba(0,122,255,0.18)', mode='lines')
-        fig.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True, tickmode='array', tickvals=[1, 5, 10, 15, 20, 25, 30], tickfont=dict(size=9)), yaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(size=9), range=[min(volume_data) - 20, max(volume_data) + 20]))
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        fig_volume = px.line(vol_df_for_chart, x='Day', y='Volume', line_shape='spline')
+        fig_volume.update_traces(line_color='#007aff', fill='tozeroy', fillcolor='rgba(0,122,255,0.18)', mode='lines')
+        fig_volume.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True, tickmode='array', tickvals=[1, 5, 10, 15, 20, 25, 30], tickfont=dict(size=9)), yaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(size=9), range=[min(_volume_data_points) - 20 if _volume_data_points else 0, max(_volume_data_points) + 20 if _volume_data_points else 100]))
+        st.plotly_chart(fig_volume, use_container_width=True, config={'displayModeBar': False})
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("Positive sentiment leads at 65%. Information-seeking is top intent (40%). Volume shows steady increase.")
+    st.markdown(f"Positive sentiment leads at {live_sentiment_summary_for_llm.get('Positive','N/A')}. {list(live_intent_summary_for_llm.keys())[0] if live_intent_summary_for_llm else 'Info-seeking'} is a top intent. Volume shows steady increase.")
+
 
     # Top Customer Themes
     st.markdown("## Top Customer Themes")
@@ -412,31 +482,33 @@ if page == "Dashboard":
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    def generate_response(prompt):
-        prompt_lower = prompt.lower()
-        if "health score" in prompt_lower:
-            return f"Customer Health Score is {current_health_data['score']}%, {current_health_data['trend']} {current_health_data['trend_label']}. Want to dive deeper?"
-        elif "alerts" in prompt_lower:
-            return "Current alerts include a spike in negative sentiment for mobile app update X.Y and high churn risk from billing errors. Need details or action suggestions?"
-        elif "hotspots" in prompt_lower:
-            return "Hotspots: Overdraft policy confusion (medium impact) and international transfer UI issues (low impact). Should we explore these further?"
-        elif "opportunities" in prompt_lower:
-            return "Top opportunities: Promote instant card activation, target mortgage inquiries, and scale service excellence. Which one interests you?"
-        elif "themes" in prompt_lower:
-            return "Positive themes: Fast customer service, easy mobile banking. Negative themes: App issues, wait times. Want to analyze a specific theme?"
-        elif "thank" in prompt_lower:
-            return "You're welcome! Anything else I can assist with?"
-        else:
-            return "I can help with insights on health scores, alerts, hotspots, opportunities, or themes. Try asking about one of these!"
-
     if prompt := st.chat_input("Ask about insights, alerts, or anything else..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
+
         with st.chat_message("assistant"):
-            response = generate_response(prompt)
-            st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            message_placeholder = st.empty()
+            full_response = ""
+
+            # Prepare combined dashboard state for LLM
+            dashboard_state_for_llm = {
+                **current_health_data, # contains score, trend, trend_label, time_period_label
+                "sentiment_summary": live_sentiment_summary_for_llm,
+                "intent_summary": live_intent_summary_for_llm,
+                "volume_summary": live_volume_summary_for_llm,
+            }
+
+            try:
+                for chunk in generate_llm_response(prompt, dashboard_state_for_llm):
+                    full_response += chunk
+                    message_placeholder.markdown(full_response + "▌") # Typing effect
+                message_placeholder.markdown(full_response) # Final response
+            except Exception as e: # Catch any other unexpected errors from the generator
+                full_response = f"An unexpected error occurred: {str(e)}"
+                message_placeholder.error(full_response)
+
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 else:
     st.markdown(f"## {page}")
