@@ -3,44 +3,28 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta
 import random
-from streamlit_option_menu import option_menu
 
 # Set page configuration
 st.set_page_config(
-    page_title="Voice of Customer Dashboard - Refined Aesthetics",
+    page_title="Voice of Customer Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Add custom CSS for styling
+# Add custom CSS
 st.markdown("""
 <style>
-    /* Main styles */
     .stApp {
         background: linear-gradient(170deg, #fbfcfe 0%, #f2f4f6 100%);
     }
 
-    /* Container styles */
-    .css-1d391kg, .css-12oz5g7 {
-        max-width: 1600px;
-        padding: 1rem;
-    }
-
-    /* Card styling */
     .card {
         background: white;
         border-radius: 14px;
         padding: 1.2rem;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03), 0 5px 10px rgba(0, 0, 0, 0.06);
         margin-bottom: 1.2rem;
-        transition: transform 0.25s ease, box-shadow 0.25s ease;
-    }
-
-    .card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.03), 0 8px 18px rgba(0, 0, 0, 0.06);
     }
 
     .card-header {
@@ -52,15 +36,6 @@ st.markdown("""
         padding-bottom: 0.8rem;
     }
 
-    .card-title {
-        font-size: 1.05rem;
-        font-weight: 500;
-        color: #1d1d1f;
-        letter-spacing: -0.01em;
-        margin: 0;
-    }
-
-    /* Health score styling */
     .health-score {
         text-align: center;
         margin: 0.8rem 0;
@@ -72,57 +47,17 @@ st.markdown("""
         color: #007aff;
     }
 
-    .health-trend {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.4rem;
-        color: #34c759;
-        font-weight: 400;
-        font-size: 0.85rem;
-    }
-
-    .negative {
-        color: #ff3b30;
-    }
-
-    /* Alert styling */
-    .alert-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.8rem;
+    .widget-summary {
         padding: 0.8rem;
-        margin-bottom: 0.8rem;
+        background: rgba(0, 0, 0, 0.02);
         border-radius: 10px;
-        background: white;
-        border-left: 4px solid;
+        font-size: 0.85rem;
+        color: #4a4a4f;
+        border: 1px solid #e5e5ea;
+        line-height: 1.45;
+        margin-top: 0.8rem;
     }
 
-    .alert-critical {
-        border-left-color: #ff3b30;
-    }
-
-    .alert-high {
-        border-left-color: #ff9500;
-    }
-
-    .alert-icon {
-        width: 0.6rem;
-        height: 0.6rem;
-        border-radius: 50%;
-        flex-shrink: 0;
-        margin-top: 0.3rem;
-    }
-
-    .alert-critical .alert-icon {
-        background: #ff3b30;
-    }
-
-    .alert-high .alert-icon {
-        background: #ff9500;
-    }
-
-    /* Theme styling */
     .theme-item {
         padding: 0.6rem 0.8rem;
         margin-bottom: 0.6rem;
@@ -154,125 +89,10 @@ st.markdown("""
         font-style: italic;
         line-height: 1.4;
     }
-
-    /* Hotspot styling */
-    .hotspot-item {
-        padding: 0.8rem;
-        margin-bottom: 0.8rem;
-        border-radius: 10px;
-        background: white;
-        border: 1px solid #e5e5ea;
-    }
-
-    .hotspot-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.4rem;
-    }
-
-    .impact-indicator {
-        padding: 0.25rem 0.6rem;
-        border-radius: 14px;
-        font-size: 0.7rem;
-        font-weight: 500;
-    }
-
-    .impact-medium {
-        background: rgba(255, 149, 0, 0.18);
-        color: rgba(255, 149, 0, 0.85);
-    }
-
-    .impact-low {
-        background: rgba(52, 199, 89, 0.18);
-        color: rgba(52, 199, 89, 0.85);
-    }
-
-    /* Opportunity styling */
-    .opportunity-item {
-        padding: 0.8rem;
-        border-radius: 10px;
-        background: white;
-        border: 1px solid #e5e5ea;
-        margin-bottom: 0.8rem;
-    }
-
-    /* Widget summary styling */
-    .widget-summary {
-        padding: 0.8rem;
-        background: rgba(0, 0, 0, 0.02);
-        border-radius: 10px;
-        font-size: 0.85rem;
-        color: #4a4a4f;
-        border: 1px solid #e5e5ea;
-        line-height: 1.45;
-        margin-top: 0.8rem;
-    }
-
-    /* Filter button styling */
-    .filter-btn {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        border: 1px solid #d2d2d7;
-        border-radius: 14px;
-        background: white;
-        font-size: 0.78rem;
-        font-weight: 400;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        color: #4a4a4f;
-        margin-right: 0.6rem;
-        margin-bottom: 0.6rem;
-    }
-
-    .filter-btn-active {
-        background: #007aff;
-        color: white;
-        border-color: #007aff;
-        font-weight: 500;
-    }
-
-    /* Layout adjustments for Streamlit */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        height: 40px;
-        white-space: pre-wrap;
-        background-color: white;
-        border-radius: 10px;
-        padding: 8px 16px;
-        border: 1px solid #d2d2d7;
-        color: #4a4a4f;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background-color: #007aff !important;
-        color: white !important;
-        border-color: #007aff !important;
-        font-weight: 500;
-    }
-
-    /* Add spacing to selectbox */
-    div[data-baseweb="select"] {
-        margin-bottom: 1rem;
-    }
-
-    /* For multiselect styles */
-    .stMultiSelect [data-baseweb="tag"] {
-        background-color: #f0f2f5;
-        border-radius: 7px;
-    }
-
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# Mock data for dashboard
+# Generate health score data
 def generate_health_score_data():
     return {
         "today": {
@@ -325,66 +145,29 @@ def generate_health_score_data():
         },
     }
 
-# Sidebar with navigation
+# Sidebar
 with st.sidebar:
-    st.image("https://via.placeholder.com/50x50.png?text=VOCAL", width=50)
-    st.markdown("## VOCAL")
+    st.title("VOCAL")
     st.markdown("---")
 
-    selected = option_menu(
-        "Menu", 
-        ["Dashboard", "Analytics", "Feedback", "Alerts", "Reports"],
-        icons=["grid", "graph-up", "chat", "exclamation-triangle", "clipboard"], 
-        menu_icon="list", 
-        default_index=0,
-    )
+    st.sidebar.header("Menu")
+    page = st.sidebar.selectbox("", ["Dashboard", "Analytics", "Feedback", "Alerts", "Reports"])
 
-    st.markdown("### Customer Insights")
-    insights = option_menu(
-        "", 
-        ["Sentiment Analysis", "Journey Mapping", "Satisfaction Scores", "Theme Analysis"],
-        icons=["emoji-smile", "bullseye", "bar-chart", "search"], 
-        menu_icon=None, 
-        default_index=0,
-        styles={
-            "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#4a4a4f", "font-size": "14px"}, 
-            "nav-link": {"font-size": "14px", "text-align": "left", "margin":"0px", "padding": "10px 20px"},
-            "nav-link-selected": {"background-color": "#007aff", "font-weight": "normal"},
-        }
-    )
+    st.sidebar.header("Customer Insights")
+    st.sidebar.selectbox("", ["Sentiment Analysis", "Journey Mapping", "Satisfaction Scores", "Theme Analysis"])
 
-    st.markdown("### Operations")
-    operations = option_menu(
-        "", 
-        ["Real-time Monitoring", "Predictive Analytics", "Performance Metrics", "Action Items"],
-        icons=["lightning", "magic", "bar-chart", "bullseye"], 
-        menu_icon=None, 
-        default_index=0,
-        styles={
-            "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#4a4a4f", "font-size": "14px"}, 
-            "nav-link": {"font-size": "14px", "text-align": "left", "margin":"0px", "padding": "10px 20px"},
-            "nav-link-selected": {"background-color": "#007aff", "font-weight": "normal"},
-        }
-    )
+    st.sidebar.header("Operations")
+    st.sidebar.selectbox("", ["Real-time Monitoring", "Predictive Analytics", "Performance Metrics", "Action Items"])
 
-    # User info at bottom of sidebar
     st.markdown("---")
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        st.markdown("""
-        <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(145deg, #007aff 0%, #005ecb 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 500;">SB</div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown("**Sebastian**")
-        st.markdown("<span style='color: #4a4a4f; font-size: 0.8rem;'>CX Manager</span>", unsafe_allow_html=True)
+    st.markdown("**Sebastian**")
+    st.markdown("CX Manager")
 
-# App header
-st.markdown("<h1 style='font-size: 1.7rem; font-weight: 600; margin-bottom: 0.2rem;'>Customer Experience Health</h1>", unsafe_allow_html=True)
-st.markdown("<p style='font-size: 0.95rem; color: #4a4a4f; margin-bottom: 1.5rem;'>Real-time Insights & Performance Overview</p>", unsafe_allow_html=True)
+# Header
+st.title("Customer Experience Health")
+st.markdown("Real-time Insights & Performance Overview")
 
-# Filter section
+# Filters
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -442,36 +225,24 @@ if "social_media" in channel_filter and "all" not in channel_filter:
     channel_multiplier = 0.6
 
 # Main dashboard layout with 3 columns
+st.markdown("## Dashboard Widgets")
 col1, col2, col3 = st.columns(3)
 
 # Column 1: Customer Health Score
 with col1:
-    st.markdown("""
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Customer Health Score</h3>
-            <div>
-                <button class="filter-btn">Export</button>
-            </div>
-        </div>
-        <div>
-            <button class="filter-btn filter-btn-active">Real-time</button>
-            <button class="filter-btn">Daily Trend</button>
-            <button class="filter-btn">Comparison</button>
-        </div>
-        <div class="health-score">
-            <div class="health-score-value">{score}<span style="font-size: 1.8rem; color: #4a4a4f;">%</span></div>
-            <div class="health-trend {trend_class}">
-                <span>{trend_icon}</span> <span>{trend} {trend_label}</span>
-            </div>
-        </div>
-    """.format(
-        score=current_health_data["score"],
-        trend=current_health_data["trend"],
-        trend_label=current_health_data["trend_label"],
-        trend_class="" if current_health_data["trend_positive"] else "negative",
-        trend_icon="↑" if current_health_data["trend_positive"] else "↓"
-    ), unsafe_allow_html=True)
+    st.markdown("### Customer Health Score")
+
+    # Tab for different views
+    health_view = st.radio("", ["Real-time", "Daily Trend", "Comparison"], horizontal=True)
+
+    # Display health score
+    score_col1, score_col2 = st.columns([1, 2])
+    with score_col1:
+        st.markdown(f"<div class='health-score-value'>{current_health_data['score']}%</div>", unsafe_allow_html=True)
+    with score_col2:
+        trend_icon = "↑" if current_health_data["trend_positive"] else "↓"
+        trend_class = "" if current_health_data["trend_positive"] else "negative"
+        st.markdown(f"<span style='color: {'#34c759' if current_health_data['trend_positive'] else '#ff3b30'}'>{trend_icon} {current_health_data['trend']} {current_health_data['trend_label']}</span>", unsafe_allow_html=True)
 
     # Health trend chart
     fig = go.Figure()
@@ -518,116 +289,83 @@ with col1:
         <div class="widget-summary">
             Overall customer satisfaction is strong, showing a positive trend this month.
         </div>
-    </div>
     """, unsafe_allow_html=True)
 
 # Column 2: Critical Alerts
 with col2:
+    st.markdown("### Critical Alerts")
+    alert_view = st.radio("", ["Critical", "High", "Medium", "All"], horizontal=True)
+
     st.markdown("""
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Critical Alerts</h3>
-            <div>
-                <button class="filter-btn" style="background: linear-gradient(180deg, #007aff 0%, #005ecb 100%); color: white; border: none;">Acknowledge All</button>
+        <div style="padding: 10px; border-left: 4px solid #ff3b30; background: white; border-radius: 10px; margin-bottom: 10px;">
+            <h4 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 0.25rem; color: #1d1d1f;">Sudden Spike in Negative Sentiment</h4>
+            <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
+                Mobile App Update X.Y: 45% negative<br>
+                Volume: 150 mentions / 3 hrs<br>
+                Issues: Login Failed, App Crashing
             </div>
         </div>
-        <div>
-            <button class="filter-btn filter-btn-active">Critical</button>
-            <button class="filter-btn">High</button>
-            <button class="filter-btn">Medium</button>
-            <button class="filter-btn">All</button>
-        </div>
-        <div class="alert-item alert-critical">
-            <div class="alert-icon" style="background: #ff3b30; width: 0.6rem; height: 0.6rem; border-radius: 50%; flex-shrink: 0; margin-top: 0.3rem;"></div>
-            <div>
-                <h4 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 0.25rem; color: #1d1d1f;">Sudden Spike in Negative Sentiment</h4>
-                <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
-                    Mobile App Update X.Y: 45% negative<br>
-                    Volume: 150 mentions / 3 hrs<br>
-                    Issues: Login Failed, App Crashing
-                </div>
-            </div>
-        </div>
-        <div class="alert-item alert-high">
-            <div class="alert-icon" style="background: #ff9500; width: 0.6rem; height: 0.6rem; border-radius: 50%; flex-shrink: 0; margin-top: 0.3rem;"></div>
-            <div>
-                <h4 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 0.25rem; color: #1d1d1f;">High Churn Risk Pattern Detected</h4>
-                <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
-                    Pattern: Repeated Billing Errors - Savings<br>
-                    12 unique customer patterns<br>
-                    Avg. sentiment: -0.8
-                </div>
-            </div>
-        </div>
-        <button style="background: linear-gradient(180deg, #007aff 0%, #005ecb 100%); color: white; border: none; padding: 0.7rem 1.2rem; border-radius: 10px; font-weight: 400; cursor: pointer; width: 100%; font-size: 0.9rem; margin-top: 0.8rem;">View All Alerts</button>
-    </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <div style="padding: 10px; border-left: 4px solid #ff9500; background: white; border-radius: 10px; margin-bottom: 10px;">
+            <h4 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 0.25rem; color: #1d1d1f;">High Churn Risk Pattern Detected</h4>
+            <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
+                Pattern: Repeated Billing Errors - Savings<br>
+                12 unique customer patterns<br>
+                Avg. sentiment: -0.8
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.button("View All Alerts", type="primary")
 
 # Column 3: Predictive Hotspots
 with col3:
+    st.markdown("### Predictive Hotspots")
+    hotspot_view = st.radio("", ["Emerging", "Trending", "Predicted"], horizontal=True)
+
     st.markdown("""
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Predictive Hotspots</h3>
-            <div>
-                <button class="filter-btn" style="background: linear-gradient(180deg, #007aff 0%, #005ecb 100%); color: white; border: none;">Create Action</button>
-            </div>
-        </div>
-        <div>
-            <button class="filter-btn filter-btn-active">Emerging</button>
-            <button class="filter-btn">Trending</button>
-            <button class="filter-btn">Predicted</button>
-        </div>
-        <div class="hotspot-item">
-            <div class="hotspot-header">
-                <h4 style="font-size: 0.95rem; font-weight: 500;">New Overdraft Policy Confusion</h4>
-                <span class="impact-indicator impact-medium">Medium Impact</span>
+        <div style="padding: 10px; background: white; border-radius: 10px; border: 1px solid #e5e5ea; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h4 style="font-size: 0.95rem; font-weight: 500; margin: 0;">New Overdraft Policy Confusion</h4>
+                <span style="background: rgba(255, 149, 0, 0.18); color: rgba(255, 149, 0, 0.85); padding: 0.25rem 0.6rem; border-radius: 14px; font-size: 0.7rem; font-weight: 500;">Medium Impact</span>
             </div>
             <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
                 'Confused' Language: +30% WoW<br>
                 Keywords: "don't understand", "how it works"
             </div>
         </div>
-        <div class="hotspot-item">
-            <div class="hotspot-header">
-                <h4 style="font-size: 0.95rem; font-weight: 500;">Intl. Transfer UI Issues</h4>
-                <span class="impact-indicator impact-low">Low Impact</span>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <div style="padding: 10px; background: white; border-radius: 10px; border: 1px solid #e5e5ea; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h4 style="font-size: 0.95rem; font-weight: 500; margin: 0;">Intl. Transfer UI Issues</h4>
+                <span style="background: rgba(52, 199, 89, 0.18); color: rgba(52, 199, 89, 0.85); padding: 0.25rem 0.6rem; border-radius: 14px; font-size: 0.7rem; font-weight: 500;">Low Impact</span>
             </div>
             <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
                 Task Abandonment: +15% MoM<br>
                 Negative sentiment: 'Beneficiary Setup'
             </div>
         </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
         <div class="widget-summary">
             Monitor emerging confusion on overdrafts and usability for international transfers.
         </div>
-    </div>
     """, unsafe_allow_html=True)
 
 # Customer Voice Snapshot - Full width
-st.markdown("""
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Customer Voice Snapshot</h3>
-        <div>
-            <button class="filter-btn">Drill Down</button>
-            <button class="filter-btn">Export</button>
-        </div>
-    </div>
-    <div>
-        <button class="filter-btn filter-btn-active">Overview</button>
-        <button class="filter-btn">Sentiment</button>
-        <button class="filter-btn">Intent</button>
-        <button class="filter-btn">Volume</button>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Customer Voice Snapshot")
+voice_view = st.radio("", ["Overview", "Sentiment", "Intent", "Volume"], horizontal=True)
 
 # Charts for Customer Voice Snapshot
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("<h4 style='margin-bottom: 0.8rem; font-weight: 400; font-size: 0.95rem; color: #4a4a4f;'>Sentiment Distribution</h4>", unsafe_allow_html=True)
+    st.markdown("### Sentiment Distribution")
 
     # Sentiment distribution data adjusted by product_multiplier
     sentiment_data = pd.DataFrame({
@@ -673,7 +411,7 @@ with col1:
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 with col2:
-    st.markdown("<h4 style='margin-bottom: 0.8rem; font-weight: 400; font-size: 0.95rem; color: #4a4a4f;'>Intent Distribution</h4>", unsafe_allow_html=True)
+    st.markdown("### Intent Distribution")
 
     # Intent distribution data
     intent_data = pd.DataFrame({
@@ -730,7 +468,7 @@ with col2:
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 with col3:
-    st.markdown("<h4 style='margin-bottom: 0.8rem; font-weight: 400; font-size: 0.95rem; color: #4a4a4f;'>Volume Trend (30 Days)</h4>", unsafe_allow_html=True)
+    st.markdown("### Volume Trend (30 Days)")
 
     # Volume trend data adjusted by channel_multiplier
     days = list(range(1, 31))
@@ -784,69 +522,42 @@ with col3:
 
 # Summary under charts
 st.markdown("""
-<div class="widget-summary" style="margin-top: 0;">
+<div class="widget-summary">
     Positive sentiment leads at 65%. Information-seeking is top intent (40%). Volume shows steady increase.
 </div>
 """, unsafe_allow_html=True)
 
 # Top Customer Themes - Full width
-st.markdown("""
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Top Customer Themes</h3>
-        <div>
-            <button class="filter-btn" style="background: linear-gradient(180deg, #007aff 0%, #005ecb 100%); color: white; border: none;">Analyze Themes</button>
-        </div>
-    </div>
-    <div>
-        <button class="filter-btn filter-btn-active">Top 10</button>
-        <button class="filter-btn">Trending</button>
-        <button class="filter-btn">Emerging</button>
-        <button class="filter-btn">Declining</button>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Top Customer Themes")
+theme_view = st.radio("", ["Top 10", "Trending", "Emerging", "Declining"], horizontal=True)
 
 # Two columns for positive and negative themes
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("<h4 style='color: #34c759; padding-bottom: 0.5rem;'>Top Positive Themes</h4>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #34c759; padding-bottom: 0.5rem; font-size: 1.1rem;'>Top Positive Themes</h3>", unsafe_allow_html=True)
     st.markdown("<div class='theme-item positive-theme'>Fast Customer Service</div>", unsafe_allow_html=True)
     st.markdown("<div class='theme-item positive-theme'>Easy Mobile Banking</div>", unsafe_allow_html=True)
     st.markdown("<div class='theme-item positive-theme'>Helpful Staff</div>", unsafe_allow_html=True)
     st.markdown("<div class='quote-item'>\"Support resolved my issue in minutes! So efficient.\"</div>", unsafe_allow_html=True)
 
 with col2:
-    st.markdown("<h4 style='color: #ff3b30; padding-bottom: 0.5rem;'>Top Negative Themes</h4>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #ff3b30; padding-bottom: 0.5rem; font-size: 1.1rem;'>Top Negative Themes</h3>", unsafe_allow_html=True)
     st.markdown("<div class='theme-item negative-theme'>App Technical Issues</div>", unsafe_allow_html=True)
     st.markdown("<div class='theme-item negative-theme'>Long Wait Times (Call)</div>", unsafe_allow_html=True)
     st.markdown("<div class='theme-item negative-theme'>Fee Transparency</div>", unsafe_allow_html=True)
     st.markdown("<div class='quote-item'>\"The app keeps crashing after the latest update. Very frustrating.\"</div>", unsafe_allow_html=True)
 
 # Opportunity Radar - Full width
-st.markdown("""
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Opportunity Radar</h3>
-        <div>
-            <button class="filter-btn" style="background: linear-gradient(180deg, #007aff 0%, #005ecb 100%); color: white; border: none;">Prioritize</button>
-        </div>
-    </div>
-    <div>
-        <button class="filter-btn filter-btn-active">High Value</button>
-        <button class="filter-btn">Quick Wins</button>
-        <button class="filter-btn">Strategic</button>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Opportunity Radar")
+opportunity_view = st.radio("", ["High Value", "Quick Wins", "Strategic"], horizontal=True)
 
 # Three columns for opportunities
 col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("""
-    <div class="opportunity-item">
+    <div style="padding: 0.8rem; border-radius: 10px; background: white; border: 1px solid #e5e5ea;">
         <h4 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 0.4rem;">🎉 Delightful: Instant Card Activation</h4>
         <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
             75 delight mentions this week (Sentiment: +0.95)<br>
@@ -858,7 +569,7 @@ with col1:
 
 with col2:
     st.markdown("""
-    <div class="opportunity-item">
+    <div style="padding: 0.8rem; border-radius: 10px; background: white; border: 1px solid #e5e5ea;">
         <h4 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 0.4rem;">💰 Cross-Sell: Mortgage Inquiries +15%</h4>
         <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
             Mortgage info seeking: +15% WoW<br>
@@ -870,7 +581,7 @@ with col2:
 
 with col3:
     st.markdown("""
-    <div class="opportunity-item">
+    <div style="padding: 0.8rem; border-radius: 10px; background: white; border: 1px solid #e5e5ea;">
         <h4 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 0.4rem;">⭐ Service Excellence: Complex Issues</h4>
         <div style="font-size: 0.78rem; color: #4a4a4f; line-height: 1.5;">
             25 positive mentions for complex issue resolution<br>
@@ -881,69 +592,54 @@ with col3:
     """, unsafe_allow_html=True)
 
 # AI Assistant - Chat widget
-st.markdown("""
-<div style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
-    <div style="position: relative;">
-        <div id="chat-container" style="display: none; position: absolute; bottom: 60px; right: 0; width: 360px; height: 500px; background: white; border-radius: 14px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); overflow: hidden; flex-direction: column; border: 1px solid #d2d2d7;">
-            <div style="background: #f8f8fa; color: #1d1d1f; padding: 0.8rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e5ea;">
-                <h3 style="font-size: 1rem; font-weight: 500; margin: 0;">VIRA</h3>
-            </div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Chat with VIRA")
 
-# Create a container for the chat widget
-chat_container = st.container()
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Hello! I'm VIRA your AI assistant. How can I help with the dashboard today?"}
+    ]
 
-# Add chat widget with expander for clean UI
-with st.expander("💬 Chat with VIRA", expanded=False):
-    # Initialize chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "assistant", "content": "Hello! I'm VIRA your AI assistant. How can I help with the dashboard today?"}
-        ]
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    # Display chat messages from history on app rerun
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Function for generating responses
+def generate_response(prompt):
+    # Simple response logic based on user input
+    prompt_lower = prompt.lower()
 
-    # Function for generating responses
-    def generate_response(prompt):
-        # Simple response logic based on user input
-        prompt_lower = prompt.lower()
+    if "health score" in prompt_lower:
+        return "Customer Health Score is 82%, up 1.5% from last month. More details?"
 
-        if "health score" in prompt_lower:
-            return "Customer Health Score is 82%, up 1.5% from last month. More details?"
+    elif "alerts" in prompt_lower:
+        return "2 critical alerts: Mobile app sentiment spike & Churn risk from billing errors. Details or actions?"
 
-        elif "alerts" in prompt_lower:
-            return "2 critical alerts: Mobile app sentiment spike & Churn risk from billing errors. Details or actions?"
+    elif "hotspots" in prompt_lower:
+        return "Hotspots: Overdraft policy confusion (medium impact) & Intl. transfer UI issues (low impact). Explore further?"
 
-        elif "hotspots" in prompt_lower:
-            return "Hotspots: Overdraft policy confusion (medium impact) & Intl. transfer UI issues (low impact). Explore further?"
+    elif "opportunities" in prompt_lower:
+        return "Opportunities: Promote instant card activation, target mortgage inquiries, scale service excellence. Interested in one?"
 
-        elif "opportunities" in prompt_lower:
-            return "Opportunities: Promote instant card activation, target mortgage inquiries, scale service excellence. Interested in one?"
+    elif "thank" in prompt_lower:
+        return "You're welcome! Anything else?"
 
-        elif "thank" in prompt_lower:
-            return "You're welcome! Anything else?"
+    else:
+        return 'I can help with dashboard insights. Try "health score trends", "summarize alerts", or "top opportunities".'
 
-        else:
-            return 'I can help with dashboard insights. Try "health score trends", "summarize alerts", or "top opportunities".'
+# Accept user input
+if prompt := st.chat_input("Ask about insights, alerts..."):
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-    # Accept user input
-    if prompt := st.chat_input("Ask about insights, alerts..."):
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        # Display user message in chat message container
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # Display assistant response in chat message container
+    with st.chat_message("assistant"):
+        response = generate_response(prompt)
+        st.markdown(response)
 
-        # Display assistant response in chat message container
-        with st.chat_message("assistant"):
-            response = generate_response(prompt)
-            st.markdown(response)
-
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    # Add assistant response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": response})
