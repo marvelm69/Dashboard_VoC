@@ -686,7 +686,6 @@ def render_sidebar():
 
 def render_filters(master_df):
     """Render the filter controls"""
-    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
     st.markdown("### 🔧 Filters")
     
     col1, col2, col3 = st.columns(3)
