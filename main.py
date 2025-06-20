@@ -755,13 +755,6 @@ def render_health_score_widget(health_data):
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.markdown("### 💚 Customer Health Score")
 
-    health_view = st.radio(
-        "View Type",
-        ["Real-time", "Daily Trend", "Comparison"],
-        horizontal=True,
-        key="health_view"
-    )
-
     col1, col2 = st.columns([1, 2])
 
     with col1:
@@ -796,14 +789,7 @@ def render_alerts_widget():
    """Render the critical alerts widget"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
    st.markdown("### 🚨 Critical Alerts")
-   
-   alert_view = st.radio(
-       "Alert Level",
-       ["Critical", "High", "Medium", "All"],
-       horizontal=True,
-       key="alert_view"
-   )
-   
+      
    # Critical alerts
    st.markdown('<div class="alert-critical">', unsafe_allow_html=True)
    st.markdown("""
@@ -841,14 +827,7 @@ def render_hotspots_widget():
    """Render the predictive hotspots widget"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
    st.markdown("### 🔮 Predictive Hotspots")
-   
-   hotspot_view = st.radio(
-       "Hotspot Type",
-       ["Emerging", "Trending", "Predicted"],
-       horizontal=True,
-       key="hotspot_view"
-   )
-   
+      
    # Emerging issues
    st.markdown("**🆕 New Overdraft Policy Confusion**")
    st.markdown("- Impact Level: Medium 🟡")
@@ -878,14 +857,7 @@ def render_hotspots_widget():
 def render_voice_snapshot(analytics_data, time_period):
    """Render the customer voice snapshot section"""
    st.markdown('<div class="section-header">📊 Customer Voice Snapshot</div>', unsafe_allow_html=True)
-   
-   voice_view = st.radio(
-       "Snapshot View",
-       ["Overview", "Sentiment", "Intent", "Volume"],
-       horizontal=True,
-       key="voice_view"
-   )
-   
+      
    col1, col2, col3 = st.columns(3)
    
    # Sentiment Distribution
@@ -939,13 +911,6 @@ def render_customer_themes():
    """Render the customer themes section"""
    st.markdown('<div class="section-header">💭 Top Customer Themes</div>', unsafe_allow_html=True)
    
-   theme_view = st.radio(
-       "Theme View",
-       ["Top 10", "Trending", "Emerging", "Declining"],
-       horizontal=True,
-       key="theme_view"
-   )
-   
    col1, col2 = st.columns(2)
    
    with col1:
@@ -993,14 +958,7 @@ def render_customer_themes():
 def render_opportunity_radar():
    """Render the opportunity radar section"""
    st.markdown('<div class="section-header">🎯 Opportunity Radar</div>', unsafe_allow_html=True)
-   
-   opportunity_view = st.radio(
-       "Opportunity Type",
-       ["High Value", "Quick Wins", "Strategic"],
-       horizontal=True,
-       key="opportunity_view"
-   )
-   
+  
    col1, col2, col3 = st.columns(3)
    
    with col1:
