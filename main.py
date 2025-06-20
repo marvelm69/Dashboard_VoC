@@ -7,10 +7,15 @@ import json
 from openai import OpenAI
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-import re
+
 # Google Sheets Integration
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+
+# === TAMBAHKAN IMPOR INI ===
+from collections import Counter
+import re # Untuk regular expressions (sudah ada di kode sebelumnya, pastikan tidak duplikat)
+# ============================
 
 # ==============================================================================
 # CONFIGURATION & CONSTANTS
