@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import random
 import uuid
+import json
 from openai import OpenAI # Ensure openai library is installed: pip install openai
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta # For more complex date manipulations
