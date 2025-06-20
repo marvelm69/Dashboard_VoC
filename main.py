@@ -675,28 +675,7 @@ def render_sidebar():
             ["Dashboard", "Analytics", "Feedback", "Alerts", "Reports"],
             key="menu_nav"
         )
-        
-        st.markdown("### 🔍 Customer Insights")
-        st.selectbox(
-            "Insights Type",
-            ["Sentiment Analysis", "Journey Mapping", "Satisfaction Scores", "Theme Analysis"],
-            key="insights_nav"
-        )
-        
-        st.markdown("### ⚙️ Operations")
-        st.selectbox(
-            "Operations Type",
-            ["Real-time Monitoring", "Predictive Analytics", "Performance Metrics", "Action Items"],
-            key="ops_nav"
-        )
-        
-        st.markdown("### 🛠️ Configuration")
-        st.selectbox(
-            "Config Type",
-            ["Settings", "User Management", "Security", "Help & Support"],
-            key="config_nav"
-        )
-        
+
         st.markdown("---")
         st.markdown("### 👤 User Info")
         st.markdown("**Sebastian**")
