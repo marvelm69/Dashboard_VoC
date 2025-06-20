@@ -7,7 +7,7 @@ import json
 from openai import OpenAI
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-
+import re
 # Google Sheets Integration
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -785,75 +785,88 @@ def render_health_score_widget(health_data):
 
     st.markdown('</div>', unsafe_allow_html=True) # This closes the metric-card div
 
-def render_alerts_widget():
-   """Render the critical alerts widget"""
+def render_alerts_widget(alerts_data): # Modified to accept data
+   """Render the critical alerts widget - now data-driven"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
    st.markdown("### 🚨 Critical Alerts")
-      
-   # Critical alerts
-   st.markdown('<div class="alert-critical">', unsafe_allow_html=True)
-   st.markdown("""
-   **🔴 Sudden Spike in Negative Sentiment**
-   - Mobile App Update X.Y: 45% negative sentiment
-   - Volume: 150 mentions in last 3 hours
-   - Key Issues: Login failures, App crashes
-   - **Action Required**: Immediate technical review
-   """)
-   st.markdown('</div>', unsafe_allow_html=True)
-   
-   # High priority alerts
-   st.markdown('<div class="alert-warning">', unsafe_allow_html=True)
-   st.markdown("""
-   **🟡 High Churn Risk Pattern**
-   - Pattern: Repeated billing errors in Savings accounts
-   - Affected: 12 unique customer patterns identified
-   - Average sentiment: -0.8 (Very Negative)
-   - **Action**: Customer retention outreach recommended
-   """)
-   st.markdown('</div>', unsafe_allow_html=True)
-   
+
+   if alerts_data:
+       # Display a limited number of alerts, e.g., top 3
+       for alert in alerts_data[:3]: # Show top 3 alerts
+           alert_class = "alert-critical" if "🚨" in alert['title'] else "alert-warning"
+           st.markdown(f'<div class="{alert_class}">', unsafe_allow_html=True)
+           st.markdown(f"**{alert['title']}**")
+           st.markdown(f"{alert['details']}")
+           if "action" in alert and alert['action']:
+               st.markdown(f"- **Suggestion**: {alert['action']}")
+           st.markdown('</div>', unsafe_allow_html=True)
+       if len(alerts_data) > 3:
+            st.caption(f"...and {len(alerts_data) - 3} more alerts. Click 'View All Alerts'.")
+   else:
+       st.success("✅ No critical alerts identified based on current data and thresholds.") # Changed to st.success
+
    col1, col2 = st.columns(2)
    with col1:
-       if st.button("🔍 View All Alerts", type="primary"):
-           st.info("Redirecting to detailed alerts page...")
-   
+       if st.button("🔍 View All Alerts", type="primary", key="view_all_alerts_btn"): # Added key
+           # This would typically navigate to another page or show a modal
+           # For now, let's just show them all in an expander if clicked
+           if alerts_data:
+                with st.expander("All Identified Alerts", expanded=True):
+                    for alert in alerts_data:
+                        alert_class = "alert-critical" if "🚨" in alert['title'] else "alert-warning"
+                        st.markdown(f'<div class="{alert_class}" style="margin-bottom: 5px;">', unsafe_allow_html=True)
+                        st.markdown(f"**{alert['title']}**")
+                        st.markdown(f"{alert['details']}")
+                        if "action" in alert and alert['action']:
+                            st.markdown(f"- **Suggestion**: {alert['action']}")
+                        st.markdown('</div>', unsafe_allow_html=True)
+           else:
+                st.info("No alerts to display.")
+
    with col2:
-       if st.button("📋 Create Action Plan", type="secondary"):
-           st.info("Opening action plan creator...")
-   
+       if st.button("📋 Create Action Plan", type="secondary", key="create_action_plan_btn"): # Added key
+           st.info("Action Plan feature coming soon!") # Placeholder
+
    st.markdown('</div>', unsafe_allow_html=True)
 
-def render_hotspots_widget():
-   """Render the predictive hotspots widget"""
+def render_hotspots_widget(hotspots_data): # Modified to accept data
+   """Render the predictive hotspots widget - focusing on emerging issues"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-   st.markdown("### 🔮 Predictive Hotspots")
-      
-   # Emerging issues
-   st.markdown("**🆕 New Overdraft Policy Confusion**")
-   st.markdown("- Impact Level: Medium 🟡")
-   st.markdown("- 'Confused' language patterns: +30% WoW")
-   st.markdown("- Common phrases: 'don't understand', 'how it works'")
-   st.markdown("- **Recommendation**: Create clearer policy explanation")
-   
-   st.markdown("---")
-   
-   st.markdown("**🌐 International Transfer UI Issues**")
-   st.markdown("- Impact Level: Low 🟢")
-   st.markdown("- Task abandonment rate: +15% MoM")
-   st.markdown("- Negative sentiment around 'Beneficiary Setup'")
-   st.markdown("- **Recommendation**: UI/UX review for international transfers")
-   
-   # Trend indicators
+   st.markdown("### 🔮 Emerging Customer Hotspots") # Changed title
+
+   if hotspots_data:
+       for hotspot in hotspots_data[:2]: # Show top 2 emerging hotspots
+           st.markdown(f"**{hotspot['title']}**")
+           st.markdown(f"{hotspot['details']}")
+           if "action" in hotspot and hotspot['action']:
+               st.markdown(f"_{hotspot['action']}_")
+           st.markdown("---")
+       if not hotspots_data: # Add this check in case only 1 or 0 hotspots
+            st.info("No significant emerging hotspots identified this week.")
+       elif len(hotspots_data) > 2 :
+            st.caption(f"...and {len(hotspots_data) - 2} more emerging topics.")
+
+   else:
+       st.info("✅ No significant emerging hotspots identified this week based on current data.")
+
+   # Metrics can now be dynamic based on counts
+   # For simplicity, we'll keep the st.metric static for now,
+   # but you could count types of alerts/hotspots.
+   num_emerging = len(hotspots_data)
+   # These are still somewhat placeholders as "Trending" and "Predicted" are not fully implemented
+   st.markdown("---") # Separator before metrics
    col1, col2, col3 = st.columns(3)
    with col1:
-       st.metric("Emerging Issues", "2", delta="1")
+       st.metric("Emerging Topics", f"{num_emerging}", delta=f"{num_emerging - st.session_state.get('prev_emerging_count', 0)}")
    with col2:
-       st.metric("Trending Topics", "5", delta="2")
+       st.metric("Trending Topics", "N/A") # Placeholder
    with col3:
-       st.metric("Predicted Risks", "3", delta="-1")
-   
-   st.markdown('</div>', unsafe_allow_html=True)
+       st.metric("Predicted Risks", "N/A") # Placeholder
 
+   st.session_state['prev_emerging_count'] = num_emerging # Store for next run delta
+
+   st.markdown('</div>', unsafe_allow_html=True)
+    
 def render_voice_snapshot(analytics_data, time_period):
    """Render the customer voice snapshot section"""
    st.markdown('<div class="section-header">📊 Customer Voice Snapshot</div>', unsafe_allow_html=True)
@@ -1095,138 +1108,361 @@ def render_vira_chat(dashboard_state):
            """)
 
 # ==============================================================================
+# ADVANCED ANALYTICS & ALERTING FUNCTIONS
+# ==============================================================================
+
+def get_recent_data(df, days=1):
+    """Filters dataframe for recent data based on 'Date' column."""
+    if df.empty or 'Date' not in df.columns:
+        return pd.DataFrame()
+    cutoff_date = pd.Timestamp('today').normalize() - pd.Timedelta(days=days)
+    return df[df['Date'] >= cutoff_date]
+
+def calculate_sentiment_alerts(df, product_col='Product', sentiment_col='Sentimen',
+                               time_window_days=1, neg_sentiment_threshold=0.50, min_mentions=5):
+    """
+    Identifies products with a high percentage of negative sentiment recently.
+    Returns a list of alert dictionaries.
+    """
+    alerts = []
+    recent_df = get_recent_data(df, days=time_window_days)
+
+    if recent_df.empty or product_col not in recent_df.columns or sentiment_col not in recent_df.columns:
+        return alerts
+
+    for product, group in recent_df.groupby(product_col):
+        if len(group) < min_mentions:
+            continue
+
+        sentiment_counts = group[sentiment_col].value_counts(normalize=True)
+        neg_proportion = sentiment_counts.get('Negatif', 0)
+
+        if neg_proportion >= neg_sentiment_threshold:
+            product_name = str(product).replace("_", " ").title()
+            alerts.append({
+                "id": f"neg_sent_{product}",
+                "title": f"🚨 High Negative Sentiment: {product_name}",
+                "details": (
+                    f"- **{neg_proportion*100:.1f}%** negative sentiment ({sentiment_counts.get('Negatif', 0) * len(group):.0f} of {len(group)} mentions) "
+                    f"for '{product_name}' in the last {time_window_days} day(s)."
+                ),
+                "action": "Investigate recent feedback for this product. Check for common issues.",
+                "product": product_name,
+                "type": "Sentiment Spike"
+            })
+    return alerts
+
+
+def find_keyword_spikes(df, text_col='Teks', product_col='Product', sentiment_col='Sentimen',
+                        time_window_days=1, keyword_threshold_mentions=3, min_keyword_length=4):
+    """
+    Identifies keywords frequently mentioned with negative sentiment recently.
+    (Simple keyword extraction - can be improved with NLP libraries like NLTK or spaCy)
+    Returns a list of alert dictionaries.
+    """
+    alerts = []
+    recent_df = get_recent_data(df, days=time_window_days)
+
+    if recent_df.empty or text_col not in recent_df.columns or product_col not in recent_df.columns or sentiment_col not in recent_df.columns:
+        return alerts
+
+    neg_df = recent_df[recent_df[sentiment_col] == 'Negatif']
+    if neg_df.empty:
+        return alerts
+
+    all_keywords = []
+    for text in neg_df[text_col].astype(str):
+        words = re.findall(r'\b\w+\b', text.lower()) # Simple word tokenization
+        all_keywords.extend([word for word in words if len(word) >= min_keyword_length and word.isalpha()])
+
+    keyword_counts = Counter(all_keywords)
+
+    for keyword, count in keyword_counts.items():
+        if count >= keyword_threshold_mentions:
+            # Find products associated with this keyword in negative feedback
+            products_affected_list = neg_df[neg_df[text_col].str.contains(keyword, case=False, na=False)][product_col].unique()
+            products_affected_str = ", ".join([str(p).replace("_", " ").title() for p in products_affected_list[:3]])
+            if len(products_affected_list) > 3:
+                products_affected_str += " and others"
+
+
+            alerts.append({
+                "id": f"keyword_spike_{keyword}",
+                "title": f"⚠️ Negative Keyword Spike: '{keyword.capitalize()}'",
+                "details": (
+                    f"- Keyword '{keyword}' mentioned **{count} times** in negative feedback "
+                    f"in the last {time_window_days} day(s)."
+                    f"{(' Associated with: ' + products_affected_str) if products_affected_str else ''}"
+                ),
+                "action": f"Review feedback containing '{keyword}' to understand context.",
+                "type": "Keyword Spike",
+                "keyword": keyword
+            })
+    return alerts
+
+
+def identify_emerging_issues(df, text_col='Teks', date_col='Date', product_col='Product',
+                             current_week_days=7, prev_week_days=7, min_mentions_increase=3, min_percentage_increase=50):
+    """
+    Identifies topics/keywords that have significantly increased in mentions this week compared to last week.
+    (Simple approach, can be enhanced with more sophisticated trend detection)
+    Returns a list of issue dictionaries.
+    """
+    issues = []
+    if df.empty or text_col not in df.columns or date_col not in df.columns or product_col not in df.columns:
+        return issues
+
+    today = pd.Timestamp('today').normalize()
+
+    # Current period (e.g., last 7 days)
+    start_current = today - pd.Timedelta(days=current_week_days -1) # Inclusive of today
+    end_current = today
+    current_df = df[(df[date_col] >= start_current) & (df[date_col] <= end_current)]
+
+    # Previous period (e.g., 7 days before the current period)
+    end_previous = start_current - pd.Timedelta(days=1)
+    start_previous = end_previous - pd.Timedelta(days=prev_week_days - 1)
+    previous_df = df[(df[date_col] >= start_previous) & (df[date_col] <= end_previous)]
+
+    if current_df.empty: # Not enough data in current period to compare
+        return issues
+
+    def get_keyword_counts(dataframe, min_len=4):
+        keywords = []
+        for text in dataframe[text_col].astype(str):
+            words = re.findall(r'\b\w+\b', text.lower())
+            keywords.extend([word for word in words if len(word) >= min_len and word.isalpha()])
+        return Counter(keywords)
+
+    current_keywords = get_keyword_counts(current_df)
+    previous_keywords = get_keyword_counts(previous_df)
+
+    emerging_keywords_data = []
+    for keyword, current_count in current_keywords.items():
+        previous_count = previous_keywords.get(keyword, 0)
+
+        mentions_increase = current_count - previous_count
+
+        if previous_count > 0:
+            percentage_increase = ((current_count - previous_count) / previous_count) * 100
+        elif current_count > 0: # New keyword
+            percentage_increase = float('inf') # Represent as very large increase
+        else:
+            percentage_increase = 0
+
+        if mentions_increase >= min_mentions_increase and (percentage_increase >= min_percentage_increase or percentage_increase == float('inf')):
+            # Find products associated with this keyword in current period
+            products_affected_list = current_df[current_df[text_col].str.contains(keyword, case=False, na=False)][product_col].unique()
+            products_affected_str = ", ".join([str(p).replace("_", " ").title() for p in products_affected_list[:3]])
+            if len(products_affected_list) > 3:
+                products_affected_str += "..."
+
+            issues.append({
+                "id": f"emerging_{keyword}",
+                "title": f"📈 Emerging Topic: '{keyword.capitalize()}'",
+                "details": (
+                    f"- Mentions: **{current_count}** (this period) vs. {previous_count} (previous period).\n"
+                    f"- Increase: **+{mentions_increase}** mentions "
+                    f"({'+'+str(int(percentage_increase))+'%' if percentage_increase != float('inf') else 'New'}).\n"
+                    f"{(' Mainly affects: ' + products_affected_str) if products_affected_str else ''}"
+
+                ),
+                "action": f"Monitor '{keyword}' closely. Consider deeper analysis if trend continues.",
+                "keyword": keyword,
+                "current_mentions": current_count,
+                "previous_mentions": previous_count,
+                "type": "Emerging Keyword"
+            })
+
+    # Sort by how new/how much increase
+    issues.sort(key=lambda x: (x['previous_mentions'] == 0, x['current_mentions'] - x['previous_mentions']), reverse=True)
+    return issues[:5] # Return top 5 emerging issues
+                                 
+# ==============================================================================
 # MAIN APPLICATION
 # ==============================================================================
 
 def main():
    """Main application function"""
    # Apply custom styling
-   apply_custom_css()
-   
+   apply_custom_css() # Panggil CSS di awal
+
+   # --- LANGKAH 6: Inisialisasi session_state (jika belum ada) ---
+   # Ini sebaiknya dilakukan di awal, sebelum logika utama yang mungkin menggunakannya.
+   if 'prev_emerging_count' not in st.session_state:
+       st.session_state['prev_emerging_count'] = 0
+   if "messages" not in st.session_state: # Inisialisasi untuk VIRA chat jika belum ada
+       st.session_state.messages = [
+           {
+               "role": "assistant",
+               "content": "🙋‍♀️ Halo! Saya VIRA, asisten AI Anda untuk analisis Voice of Customer. "
+                         "Saya dapat membantu menganalisis data dasbor, memberikan insights, dan menjawab pertanyaan "
+                         "terkait performa customer experience. Ada yang bisa saya bantu hari ini?"
+           }
+       ]
+   # --- Akhir Langkah 6 ---
+
    # Load data
    with st.spinner("🔄 Loading data from Google Sheets..."):
        master_df = load_data_from_google_sheets()
-   
+
    # Render sidebar and get page selection
    current_page = render_sidebar()
-   
+
    # Main content based on page selection
    if current_page == "Dashboard":
        # Dashboard header
        st.markdown('<div class="dashboard-header">🏦 Voice of Customer Dashboard</div>', unsafe_allow_html=True)
        st.markdown("*Real-time Customer Experience Insights & Performance Analytics*")
-       
+
        # Render filters
        time_period, selected_products, selected_channels = render_filters(master_df)
-       
+
        # Apply filters to data
-       filtered_df = master_df.copy()
-       filtered_df = apply_time_filter(filtered_df, time_period)
-       filtered_df = apply_product_filter(filtered_df, selected_products)
-       filtered_df = apply_channel_filter(filtered_df, selected_channels)
-       
-       # Process analytics data
+       filtered_df = master_df.copy() # Mulai dengan salinan master_df
+       if not filtered_df.empty: # Hanya filter jika df tidak kosong
+            filtered_df = apply_time_filter(filtered_df, time_period)
+            filtered_df = apply_product_filter(filtered_df, selected_products)
+            filtered_df = apply_channel_filter(filtered_df, selected_channels)
+
+       # Process analytics data (menggunakan filtered_df)
        analytics_data = process_filtered_data(filtered_df)
-       
+
+       # --- Calculate Real-time Alerts and Hotspots ---
+       # (Kode dari Langkah 2 untuk kalkulasi alerts dan hotspots ada di sini)
+       TEXT_COLUMN_NAME = 'Teks' 
+
+       temp_master_df_for_alerts = master_df.copy() # Gunakan salinan untuk modifikasi aman
+       if not temp_master_df_for_alerts.empty:
+           if TEXT_COLUMN_NAME not in temp_master_df_for_alerts.columns:
+               st.warning(f"Warning: Text column '{TEXT_COLUMN_NAME}' not found in data for alerts/hotspots. Results may be limited.")
+               temp_master_df_for_alerts[TEXT_COLUMN_NAME] = "" # Buat kolom dummy jika tidak ada
+           else:
+                # Pastikan kolom teks adalah string dan handle NaN
+                temp_master_df_for_alerts[TEXT_COLUMN_NAME] = temp_master_df_for_alerts[TEXT_COLUMN_NAME].fillna('').astype(str)
+
+
+       critical_sentiment_alerts = calculate_sentiment_alerts(
+           temp_master_df_for_alerts,
+           product_col='Product',
+           sentiment_col='Sentimen',
+           time_window_days=1,
+           neg_sentiment_threshold=0.40,
+           min_mentions=5
+       )
+
+       keyword_spike_alerts = []
+       if TEXT_COLUMN_NAME in temp_master_df_for_alerts.columns and not temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""].empty:
+           keyword_spike_alerts = find_keyword_spikes(
+               temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""], # Filter baris kosong untuk keyword spike
+               text_col=TEXT_COLUMN_NAME,
+               product_col='Product',
+               sentiment_col='Sentimen',
+               time_window_days=1,
+               keyword_threshold_mentions=3
+           )
+
+       all_critical_alerts = critical_sentiment_alerts + keyword_spike_alerts
+       all_critical_alerts.sort(key=lambda x: x['title'])
+
+
+       emerging_issues_hotspots = []
+       if TEXT_COLUMN_NAME in temp_master_df_for_alerts.columns and not temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""].empty:
+           emerging_issues_hotspots = identify_emerging_issues(
+               temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""],
+               text_col=TEXT_COLUMN_NAME,
+               date_col='Date',
+               product_col='Product',
+               current_week_days=7,
+               prev_week_days=7,
+               min_mentions_increase=2,
+               min_percentage_increase=30
+           )
+       # --- End Calculation ---
+
        # Get health score data
        health_score_data = generate_health_score_data()
        time_period_map = {
            "All Periods": "all", "Today": "today", "This Week": "week",
            "This Month": "month", "This Quarter": "quarter", "This Year": "year"
        }
-       selected_time_key = time_period_map.get(time_period, "month")
-       current_health_data = health_score_data[selected_time_key].copy()
+       selected_time_key = time_period_map.get(time_period, "month") # default ke 'month' jika tidak cocok
+       current_health_data = health_score_data.get(selected_time_key, health_score_data["month"]).copy() # Pastikan selected_time_key ada
        current_health_data['time_period_label'] = time_period
-       
+
        # Dashboard widgets section
        st.markdown('<div class="section-header">📊 Dashboard Widgets</div>', unsafe_allow_html=True)
-       
+
        col1, col2, col3 = st.columns(3)
-       
+
+       # --- LANGKAH 5: Memanggil widget dengan data yang sudah dikalkulasi ---
        with col1:
            render_health_score_widget(current_health_data)
-       
+
        with col2:
-           render_alerts_widget()
-       
+           render_alerts_widget(all_critical_alerts) # Mengirimkan data alerts
+
        with col3:
-           render_hotspots_widget()
-       
-       # Customer voice snapshot
+           render_hotspots_widget(emerging_issues_hotspots) # Mengirimkan data hotspots
+       # --- Akhir Langkah 5 ---
+
+       # Customer voice snapshot (menggunakan analytics_data dari filtered_df)
        render_voice_snapshot(analytics_data, time_period)
-       
-       # Generate summary insights
+
+       # Generate summary insights (berdasarkan filtered_df)
        if not filtered_df.empty:
            summary_parts = []
-           sentiment_summary = analytics_data['sentiment_summary']
-           intent_summary = analytics_data['intent_summary']
-           
-           if 'Positif' in sentiment_summary:
+           sentiment_summary = analytics_data.get('sentiment_summary', {})
+           intent_summary = analytics_data.get('intent_summary', {})
+
+           if 'Positif' in sentiment_summary and '%' in sentiment_summary['Positif']:
                positive_pct = sentiment_summary['Positif'].split('%')[0]
                summary_parts.append(f"Sentimen positif mendominasi ({positive_pct}%)")
-           
-           if intent_summary and "Info" not in intent_summary:
+
+           if intent_summary and "Info" not in intent_summary and intent_summary:
                top_intent = list(intent_summary.keys())[0]
                summary_parts.append(f"intent '{top_intent}' paling sering muncul")
-           
-           if analytics_data['total_interactions'] > 0:
+
+           if analytics_data.get('total_interactions', 0) > 0:
                summary_parts.append(f"dengan total {analytics_data['total_interactions']} interaksi")
-           
+
            if summary_parts:
-               st.info(f"📈 **Ringkasan**: {', '.join(summary_parts)} dalam periode {time_period.lower()}.")
-       else:
-           st.warning("⚠️ Tidak ada data yang tersedia untuk filter yang dipilih.")
-       
-       # Customer themes
+               st.info(f"📈 **Ringkasan**: {', '.join(summary_parts)} dalam periode {time_period.lower()} untuk filter yang dipilih.")
+       elif master_df.empty: # Jika master_df kosong dari awal
+            st.warning("⚠️ Tidak ada data yang dimuat dari Google Sheets.")
+       else: # Jika filtered_df kosong tapi master_df ada isinya
+           st.warning("⚠️ Tidak ada data yang tersedia untuk filter yang dipilih saat ini.")
+
+       # Customer themes (static content for now)
        render_customer_themes()
-       
-       # Opportunity radar
+
+       # Opportunity radar (static content for now)
        render_opportunity_radar()
-       
+
        # Prepare dashboard state for VIRA
-       dashboard_state = {
+       dashboard_state_vira = { # Ganti nama variabel agar tidak konflik
            **current_health_data,
-           "time_period_label_llm": time_period,
-           **analytics_data
+           "time_period_label_llm": time_period, # Sudah benar
+           # Ambil data dari analytics_data yang berbasis filtered_df untuk VIRA
+           'total_interactions': analytics_data.get('total_interactions', 'N/A'),
+           'sentiment_summary': analytics_data.get('sentiment_summary', {}),
+           'intent_summary': analytics_data.get('intent_summary', {}),
+           'volume_summary': analytics_data.get('volume_summary', 'N/A'),
+           # Anda bisa tambahkan ringkasan alerts/hotspots jika ingin VIRA mengetahuinya
+           'critical_alerts_summary': f"{len(all_critical_alerts)} critical alerts identified." if all_critical_alerts else "No critical alerts.",
+           'emerging_hotspots_summary': f"{len(emerging_issues_hotspots)} emerging hotspots identified." if emerging_issues_hotspots else "No emerging hotspots."
        }
-       
+
        # VIRA Chat
-       render_vira_chat(dashboard_state)
-       
+       render_vira_chat(dashboard_state_vira) # Gunakan variabel yang sudah diupdate
+
    else:
        # Other pages (placeholder)
        st.markdown('<div class="dashboard-header">🚧 Coming Soon</div>', unsafe_allow_html=True)
        st.markdown(f"## {current_page}")
        st.info(f"Halaman {current_page} sedang dalam pengembangan. Silakan pilih 'Dashboard' untuk melihat dashboard utama.")
-       
-       # Add some placeholder content based on page
-       if current_page == "Analytics":
-           st.markdown("### 📊 Advanced Analytics")
-           st.markdown("- Detailed sentiment analysis")
-           st.markdown("- Customer journey mapping")
-           st.markdown("- Predictive modeling")
-           st.markdown("- Custom report generation")
-       
-       elif current_page == "Feedback":
-           st.markdown("### 💬 Customer Feedback")
-           st.markdown("- Feedback collection management")
-           st.markdown("- Response tracking")
-           st.markdown("- Satisfaction surveys")
-           st.markdown("- Feedback categorization")
-       
-       elif current_page == "Alerts":
-           st.markdown("### 🚨 Alert Management")
-           st.markdown("- Real-time alert configuration")
-           st.markdown("- Escalation procedures")
-           st.markdown("- Alert history")
-           st.markdown("- Performance monitoring")
-       
-       elif current_page == "Reports":
-           st.markdown("### 📈 Reporting")
-           st.markdown("- Executive dashboards")
-           st.markdown("- Scheduled reports")
-           st.markdown("- Custom analytics")
-           st.markdown("- Data export capabilities")
+
+       # ... (kode placeholder untuk halaman lain) ...
 
 # ==============================================================================
 # APPLICATION ENTRY POINT
