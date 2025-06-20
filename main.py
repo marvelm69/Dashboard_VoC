@@ -722,7 +722,38 @@ Jika ada pertanyaan yang tidak dapat dijawab dari data dasbor, sampaikan dengan 
 Berikan analisis yang ringkas namun mendalam.
 Jika ada pertanyaan di luar konteks analisis Anda, sampaikan bahwa itu di luar kapabilitas Anda.
 """
+def get_top_themes(df, sentiment_type, top_n=3):
+    """
+    Mengidentifikasi top N 'Intent' berdasarkan sentimen tertentu dan menghitung metriknya.
+    """
+    if df.empty or 'Intent' not in df.columns or 'Sentimen' not in df.columns:
+        return []
 
+    # Filter berdasarkan sentimen
+    df_sentiment_filtered = df[df['Sentimen'] == sentiment_type]
+
+    if df_sentiment_filtered.empty:
+        return []
+
+    # Hitung jumlah kemunculan setiap Intent dan rata-rata sentimen (walaupun sudah difilter,
+    # ini berguna jika ada sub-skor sentimen numerik nantinya)
+    # Untuk sekarang, kita hanya hitung frekuensi Intent
+    theme_counts = df_sentiment_filtered['Intent'].value_counts().nlargest(top_n)
+
+    top_themes_data = []
+    for intent, mentions in theme_counts.items():
+        # Ambil contoh verbatim (Summary aktual) untuk tema ini
+        # Ambil Summary pertama yang cocok dengan intent dan sentimen ini
+        example_comment_series = df_sentiment_filtered[df_sentiment_filtered['Intent'] == intent]['Summary'] # Asumsi ada kolom 'Summary'
+        example_comment = example_comment_series.iloc[0] if not example_comment_series.empty else f"No example comment for {intent}."
+
+        top_themes_data.append({
+            "theme": intent, # 'Intent' sekarang menjadi 'theme'
+            "mentions": mentions,
+            "sentiment_type": sentiment_type, # Menyimpan tipe sentimen
+            "example_comment": example_comment
+        })
+    return top_themes_data
 def initialize_ai_client():
     """Initialize the AI client"""
     return OpenAI(
@@ -1021,57 +1052,50 @@ def render_voice_snapshot(analytics_data, time_period):
 
        st.markdown('</div>', unsafe_allow_html=True) # Close content-block
        
-def render_customer_themes():
-   """Render the customer themes section"""
-   st.markdown('<div class="section-header">💭 Top Customer Themes</div>', unsafe_allow_html=True)
+def render_customer_themes(positive_themes_data, negative_themes_data):
+   """Render the customer themes section based on processed data."""
+   st.markdown('<div class="section-header">💭 Top Customer Themes (Based on Intent & Sentiment)</div>', unsafe_allow_html=True)
 
    col1, col2 = st.columns(2)
 
    with col1:
-       st.markdown('<div class="content-block">', unsafe_allow_html=True) # Open content-block
+       st.markdown('<div class="content-block">', unsafe_allow_html=True)
        st.markdown("<h3>🌟 Top Positive Themes</h3>", unsafe_allow_html=True)
 
-       positive_themes = [
-           {"theme": "Fast Customer Service", "mentions": 156, "sentiment": 0.85},
-           {"theme": "Easy Mobile Banking", "mentions": 134, "sentiment": 0.82},
-           {"theme": "Helpful Staff", "mentions": 112, "sentiment": 0.78},
-       ] # Shortened for brevity
+       if positive_themes_data:
+           for theme_info in positive_themes_data:
+               st.markdown(f"""
+               <div class="theme-item">
+                   <strong>{theme_info['theme']}</strong>
+                   <p style="margin-bottom:0.1rem;">Mentions: {theme_info['mentions']}</p>
+               </div>
+               """, unsafe_allow_html=True)
+           # Menampilkan contoh Summary dari tema positif pertama (jika ada)
+           if positive_themes_data[0].get("example_comment"):
+                st.markdown(f'<div class="theme-quote positive">💬 "{positive_themes_data[0]["example_comment"]}"</div>', unsafe_allow_html=True)
+       else:
+           st.info("No significant positive themes found for the current filters.")
 
-       for theme in positive_themes:
-           st.markdown(f"""
-           <div class="theme-item">
-               <strong>{theme['theme']}</strong>
-               <p style="margin-bottom:0.1rem;">Mentions: {theme['mentions']} | Sentiment: {theme['sentiment']:.2f} <span style="color: green;">▲</span></p>
-           </div>
-           """, unsafe_allow_html=True)
-
-       st.markdown('<div class="theme-quote positive">💬 "Support resolved my issue in minutes! So efficient and professional."</div>', unsafe_allow_html=True)
-       st.markdown('</div>', unsafe_allow_html=True) # Close content-block
+       st.markdown('</div>', unsafe_allow_html=True)
 
    with col2:
-       st.markdown('<div class="content-block">', unsafe_allow_html=True) # Open content-block
+       st.markdown('<div class="content-block">', unsafe_allow_html=True)
        st.markdown("<h3>⚠️ Top Negative Themes</h3>", unsafe_allow_html=True)
 
-       negative_themes = [
-           {"theme": "App Technical Issues", "mentions": 89, "sentiment": -0.72},
-           {"theme": "Long Wait Times", "mentions": 76, "sentiment": -0.68},
-           {"theme": "Fee Transparency", "mentions": 65, "sentiment": -0.58},
-       ] # Shortened for brevity
-
-       for theme in negative_themes:
-           st.markdown(f"""
-           <div class="theme-item">
-               <strong>{theme['theme']}</strong>
-               <p style="margin-bottom:0.1rem;">Mentions: {theme['mentions']} | Sentiment: {theme['sentiment']:.2f} <span style="color: red;">▼</span></p>
-           </div>
-           """, unsafe_allow_html=True)
-
-       st.markdown('<div class="theme-quote negative">💬 "The app keeps crashing after the latest update. Very frustrating experience."</div>', unsafe_allow_html=True)
-       st.markdown('</div>', unsafe_allow_html=True) # Close content-block
-
-def render_opportunity_radar():
-   """Render the opportunity radar section"""
-   st.markdown('<div class="section-header">🎯 Opportunity Radar</div>', unsafe_allow_html=True)
+       if negative_themes_data:
+           for theme_info in negative_themes_data:
+               st.markdown(f"""
+               <div class="theme-item">
+                   <strong>{theme_info['theme']}</strong>
+                   <p style="margin-bottom:0.1rem;">Mentions: {theme_info['mentions']}</p>
+               </div>
+               """, unsafe_allow_html=True)
+           # Menampilkan contoh Summary dari tema negatif pertama (jika ada)
+           if negative_themes_data[0].get("example_comment"):
+                st.markdown(f'<div class="theme-quote negative">💬 "{negative_themes_data[0]["example_comment"]}"</div>', unsafe_allow_html=True)
+       else:
+           st.info("No significant negative themes found for the current filters.")
+       st.markdown('</div>', unsafe_allow_html=True)
 
    col1, col2, col3 = st.columns(3)
 
@@ -1208,6 +1232,10 @@ def render_vira_chat(dashboard_state):
 # MAIN APPLICATION
 # ==============================================================================
 
+# ==============================================================================
+# MAIN APPLICATION
+# ==============================================================================
+
 def main():
    """Main application function"""
    apply_custom_css()
@@ -1242,10 +1270,6 @@ def main():
        current_health_data = health_score_data[selected_time_key].copy()
        current_health_data['time_period_label'] = time_period
 
-       # Dashboard widgets section using metric-card for a consistent look
-       # This header is optional if you feel the section-header below is enough
-       # st.markdown('<div class="section-header" style="margin-top:1rem;">🚀 Key Performance Indicators</div>', unsafe_allow_html=True)
-
        cols_kpi = st.columns(3)
        with cols_kpi[0]:
            render_health_score_widget(current_health_data)
@@ -1256,7 +1280,6 @@ def main():
 
        render_voice_snapshot(analytics_data, time_period)
 
-       # Summary Insights
        if not filtered_df.empty and analytics_data['total_interactions'] > 0 :
            summary_parts = []
            sentiment_summary = analytics_data['sentiment_summary']
@@ -1273,22 +1296,50 @@ def main():
                except ValueError:
                     summary_parts.append(f"Sentimen positif: {positive_pct_str}%")
 
-
            if intent_summary and "Info" not in intent_summary and intent_summary.keys():
                top_intent = list(intent_summary.keys())[0]
                summary_parts.append(f"🎯 '{top_intent}' adalah niat utama")
 
            if analytics_data['total_interactions'] > 0:
-               summary_parts.append(f"dari total {analytics_data['total_interactions']:,} interaksi") # Formatted number
+               summary_parts.append(f"dari total {analytics_data['total_interactions']:,} interaksi")
 
            if summary_parts:
                st.success(f"**📈 Ringkasan Data ({time_period}):** {', '.join(summary_parts)}.", icon="💡")
-       elif not master_df.empty: # If master_df is not empty but filtered_df is
+       elif not master_df.empty:
            st.warning(f"⚠️ Tidak ada data yang ditemukan untuk filter yang dipilih ({time_period}, Produk: {selected_products}, Channel: {selected_channels}). Coba ubah filter Anda.", icon="🚫")
-       # else: master_df is empty, already handled by warning at data load/filter application.
 
-       render_customer_themes()
-       render_opportunity_radar()
+       # =======================================================================
+       # >>> AWAL BAGIAN YANG DIMODIFIKASI/DITAMBAHKAN UNTUK CUSTOMER THEMES <<<
+       # =======================================================================
+
+       # Dapatkan data untuk Top Customer Themes
+       # Pastikan kolom 'Summary' ada di filtered_df jika ingin example_comment berfungsi.
+       # GANTI 'Summary' DENGAN NAMA KOLOM VERBATIM ANDA JIKA BERBEDA.
+       # Kolom yang dibutuhkan: 'Intent', 'Sentimen', dan kolom verbatim (misal, 'Summary')
+       nama_kolom_verbatim = 'Summary' # <-- GANTI INI JIKA PERLU
+       required_theme_cols = ['Intent', 'Sentimen', nama_kolom_verbatim]
+
+       top_positive_themes = []
+       top_negative_themes = []
+
+       if not filtered_df.empty: # Hanya proses jika filtered_df tidak kosong
+           if all(col in filtered_df.columns for col in required_theme_cols):
+               top_positive_themes = get_top_themes(filtered_df, 'Positif', top_n=3) # 'Positif' harus cocok dengan data Anda
+               top_negative_themes = get_top_themes(filtered_df, 'Negatif', top_n=3) # 'Negatif' harus cocok dengan data Anda
+           else:
+               missing_cols = [col for col in required_theme_cols if col not in filtered_df.columns]
+               st.warning(f"Kolom yang dibutuhkan untuk Customer Themes ({', '.join(missing_cols)}) tidak ditemukan di data. Themes tidak dapat ditampilkan.", icon="⚠️")
+       # Jika filtered_df kosong, top_positive_themes dan top_negative_themes akan tetap list kosong.
+
+       # Panggil render_customer_themes dengan data yang sudah diproses
+       # Ini MENGGANTIKAN panggilan render_customer_themes() yang lama (jika ada yang menggunakan data dummy)
+       render_customer_themes(top_positive_themes, top_negative_themes)
+
+       # =======================================================================
+       # >>> AKHIR BAGIAN YANG DIMODIFIKASI/DITAMBAHKAN UNTUK CUSTOMER THEMES <<<
+       # =======================================================================
+
+       render_opportunity_radar() # Asumsi ini masih menggunakan data dummy atau logika sendiri
 
        dashboard_state = {
            **current_health_data,
@@ -1298,23 +1349,25 @@ def main():
            'intent_summary': analytics_data.get('intent_summary', {}),
            'volume_summary': analytics_data.get('volume_summary', 'N/A'),
            'critical_alerts_summary': "Terdapat lonjakan sentimen negatif terkait update aplikasi mobile dan pola risiko churn pada rekening tabungan.",
-           'emerging_hotspots_summary': "Isu baru terkait kebingungan kebijakan overdraft dan masalah UI transfer internasional."
+           'emerging_hotspots_summary': "Isu baru terkait kebingungan kebijakan overdraft dan masalah UI transfer internasional.",
+           # Tambahkan ringkasan tema ke dashboard_state jika VIRA perlu mengetahuinya
+           'positive_themes_summary': f"{len(top_positive_themes)} tema positif teratas: " + ", ".join([t['theme'] for t in top_positive_themes]) if top_positive_themes else "Tidak ada tema positif signifikan.",
+           'negative_themes_summary': f"{len(top_negative_themes)} tema negatif teratas: " + ", ".join([t['theme'] for t in top_negative_themes]) if top_negative_themes else "Tidak ada tema negatif signifikan."
        }
        render_vira_chat(dashboard_state)
 
    else:
+       # ... (kode untuk halaman lain) ...
        st.markdown(f'<div class="dashboard-header">🚧 {current_page} - Segera Hadir</div>', unsafe_allow_html=True)
        st.markdown(f"*Fitur canggih untuk halaman '{current_page}' sedang dalam tahap akhir pengembangan.*")
        st.info(f"Halaman **{current_page}** akan segera tersedia dengan analisis dan fitur yang lebih mendalam. Untuk saat ini, silakan kembali ke **Dashboard** utama.", icon="🛠️")
 
-       # Add some placeholder content to make it feel less empty
        if current_page == "Analytics":
             st.subheader("🔬 Apa yang akan datang di Analisis Lanjutan?")
             st.markdown("- Analisis sentimen per topik secara mendalam")
             st.markdown("- Pemetaan perjalanan pelanggan (Customer Journey Mapping)")
             st.markdown("- Model prediktif untuk churn dan kepuasan")
             st.markdown("- Pembuatan laporan kustom dengan visualisasi interaktif")
-       # ... (similar placeholders for other pages)
 
 # ==============================================================================
 # APPLICATION ENTRY POINT
