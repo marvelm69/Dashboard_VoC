@@ -34,11 +34,11 @@ def get_google_sheets_service():
         return None
 
 @st.cache_data(ttl=600)
-def fetch_sheet_data(service, sheet_name, range_name):
-    if service is None:
+def fetch_sheet_data(_service, sheet_name, range_name): # Tambahkan '_' di depan service
+    if _service is None: # Gunakan _service di dalam fungsi
         return []
     try:
-        result = service.spreadsheets().values().get(
+        result = _service.spreadsheets().values().get( # Gunakan _service di dalam fungsi
             spreadsheetId=SPREADSHEET_ID,
             range=f"{sheet_name}!{range_name}"
         ).execute()
@@ -397,7 +397,7 @@ if page == "Dashboard":
 
     # --- FETCH DATA FROM GOOGLE SHEETS ---
     if sheets_service:
-        raw_health_data = fetch_sheet_data(sheets_service, "HealthScores", "A:G") # A1:G for all rows
+        raw_health_data = fetch_sheet_data(sheets_service, "HealthScores", "A:G")
         health_score_data_source = process_health_score_data_from_sheet(raw_health_data)
 
         raw_sentiment_data = fetch_sheet_data(sheets_service, "SentimentData", "A:B")
