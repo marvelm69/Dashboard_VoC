@@ -611,7 +611,7 @@ Selalu dasarkan jawaban Anda pada data yang diberikan dalam `dashboard_state`.
 Gunakan bahasa Indonesia yang sopan dan mudah dimengerti.
 Jika ada pertanyaan yang tidak dapat dijawab dari data dasbor, sampaikan dengan sopan bahwa informasi tersebut tidak tersedia.
 Berikan analisis yang ringkas namun mendalam.
-Jika ada pertanyaan di luar konteks analisis Anda, sampaikan bahwa itu di luar kapabilitas Anda.
+Jika ada pertanyaan di luar konmasked_text analisis Anda, sampaikan bahwa itu di luar kapabilitas Anda.
 """
 
 def initialize_ai_client():
@@ -1153,7 +1153,7 @@ def calculate_sentiment_alerts(df, product_col='Product', sentiment_col='Sentime
     return alerts
 
 
-def find_keyword_spikes(df, text_col='Teks', product_col='Product', sentiment_col='Sentimen',
+def find_keyword_spikes(df, text_col='masked_text', product_col='Product', sentiment_col='Sentimen',
                         time_window_days=1, keyword_threshold_mentions=3, min_keyword_length=4):
     """
     Identifies keywords frequently mentioned with negative sentiment recently.
@@ -1201,7 +1201,7 @@ def find_keyword_spikes(df, text_col='Teks', product_col='Product', sentiment_co
     return alerts
 
 
-def identify_emerging_issues(df, text_col='Teks', date_col='Date', product_col='Product',
+def identify_emerging_issues(df, text_col='masked_text', date_col='Date', product_col='Product',
                              current_week_days=7, prev_week_days=7, min_mentions_increase=3, min_percentage_increase=50):
     """
     Identifies topics/keywords that have significantly increased in mentions this week compared to last week.
@@ -1330,7 +1330,7 @@ def main():
 
        # --- Calculate Real-time Alerts and Hotspots ---
        # (Kode dari Langkah 2 untuk kalkulasi alerts dan hotspots ada di sini)
-       TEXT_COLUMN_NAME = 'Teks' 
+       TEXT_COLUMN_NAME = 'masked_text' 
 
        temp_master_df_for_alerts = master_df.copy() # Gunakan salinan untuk modifikasi aman
        if not temp_master_df_for_alerts.empty:
@@ -1338,7 +1338,7 @@ def main():
                st.warning(f"Warning: Text column '{TEXT_COLUMN_NAME}' not found in data for alerts/hotspots. Results may be limited.")
                temp_master_df_for_alerts[TEXT_COLUMN_NAME] = "" # Buat kolom dummy jika tidak ada
            else:
-                # Pastikan kolom teks adalah string dan handle NaN
+                # Pastikan kolom masked_text adalah string dan handle NaN
                 temp_master_df_for_alerts[TEXT_COLUMN_NAME] = temp_master_df_for_alerts[TEXT_COLUMN_NAME].fillna('').astype(str)
 
 
