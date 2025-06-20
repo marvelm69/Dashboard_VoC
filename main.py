@@ -745,19 +745,19 @@ def render_health_score_widget(health_data):
     """Render the health score widget"""
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.markdown("### 💚 Customer Health Score")
-    
+
     health_view = st.radio(
         "View Type",
         ["Real-time", "Daily Trend", "Comparison"],
         horizontal=True,
         key="health_view"
     )
-    
+
     col1, col2 = st.columns([1, 2])
-    
+
     with col1:
         st.markdown(f'<div class="metric-value">{health_data["score"]}%</div>', unsafe_allow_html=True)
-    
+
     with col2:
         trend_icon = "📈" if health_data["trend_positive"] else "📉"
         trend_class = "metric-trend-positive" if health_data["trend_positive"] else "metric-trend-negative"
@@ -765,23 +765,23 @@ def render_health_score_widget(health_data):
            f'<div class="{trend_class}">{trend_icon} {health_data["trend"]} {health_data["trend_label"]}</div>',
            unsafe_allow_html=True
        )
-   
-# Health score chart
-fig_health = create_health_score_chart(health_data)
-st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
-   
-# Health score interpretation
-score = health_data["score"]
-if score >= 80:
-	st.success("🎉 Excellent customer satisfaction! Keep up the great work.")
-elif score >= 70:
-	st.info("👍 Good customer satisfaction with room for improvement.")
-elif score >= 60:
-	st.warning("⚠️ Moderate satisfaction. Consider addressing key issues.")
-else:
-	st.error("🚨 Low satisfaction detected. Immediate action recommended.")
-   
-st.markdown('</div>', unsafe_allow_html=True)
+
+    # Health score chart (Corrected Indentation Starts Here)
+    fig_health = create_health_score_chart(health_data)
+    st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
+
+    # Health score interpretation
+    score = health_data["score"]
+    if score >= 80:
+        st.success("🎉 Excellent customer satisfaction! Keep up the great work.")
+    elif score >= 70:
+        st.info("👍 Good customer satisfaction with room for improvement.")
+    elif score >= 60:
+        st.warning("⚠️ Moderate satisfaction. Consider addressing key issues.")
+    else:
+        st.error("🚨 Low satisfaction detected. Immediate action recommended.")
+
+    st.markdown('</div>', unsafe_allow_html=True) # This closes the metric-card div
 
 def render_alerts_widget():
    """Render the critical alerts widget"""
