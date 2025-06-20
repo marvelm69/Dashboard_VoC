@@ -37,135 +37,144 @@ NVIDIA_API_KEY = "nvapi-QwWbBVIOrh9PQxi-OmGtsnhapwoP7SerV3x2v56islo6QM-yvsL9a0af
 # ==============================================================================
 
 def apply_custom_css():
-    """Apply custom CSS for better UI/UX"""
+    """Apply custom CSS for a professional, simple, and appealing UI/UX"""
     st.markdown("""
     <style>
         /* Main App Styling */
         .stApp {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #1d1d1f;
+            background-color: #f0f2f5; /* Light grey background */
+            color: #333; /* Default text color */
         }
-        
+
         /* Sidebar Styling */
-        .css-1d391kg {
+        .css-1d391kg { /* This class might change with Streamlit versions, be careful */
             background-color: #ffffff;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-right: 1px solid #e0e0e0; /* Subtle separator */
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
         }
-        
+
         /* Main Content Area */
         .main > div {
-            padding-top: 2rem;
-            background-color: rgba(255,255,255,0.95);
-            border-radius: 20px;
+            padding: 1.5rem; /* Adjusted padding */
+            background-color: #ffffff;
+            border-radius: 12px; /* Slightly softer radius */
             margin: 1rem;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* Softer shadow */
         }
-        
+
         /* Metric Cards */
         .metric-card {
-            background: linear-gradient(145deg, #ffffff, #f0f0f0);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            background-color: #ffffff;
+            padding: 1.5rem; /* Consistent padding */
+            border-radius: 10px;
+            border: 1px solid #e0e0e0; /* Subtle border */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             margin-bottom: 20px;
-            transition: transform 0.3s ease;
+            transition: box-shadow 0.3s ease;
         }
-        
+
         .metric-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        
+
         /* Headers and Titles */
         .dashboard-header {
             text-align: center;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
+            color: #1a253c; /* Deep navy/charcoal */
+            font-size: 2.2rem; /* Slightly adjusted */
+            font-weight: 600; /* Bold but not overly so */
+            margin-bottom: 1.5rem;
         }
-        
+
         .section-header {
-            font-size: 1.5rem;
+            font-size: 1.4rem; /* Adjusted size */
             font-weight: 600;
-            color: #2c3e50;
-            border-bottom: 3px solid #667eea;
+            color: #334155; /* Dark slate gray */
+            border-bottom: 2px solid #007bff; /* Professional blue accent */
             padding-bottom: 0.5rem;
-            margin: 2rem 0 1rem 0;
+            margin: 2rem 0 1.5rem 0;
         }
-        
+
         /* Buttons */
         .stButton > button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-color: #007bff; /* Primary blue */
             color: white;
-            border-radius: 25px;
+            border-radius: 6px; /* Standard button radius */
             border: none;
-            padding: 10px 20px;
+            padding: 8px 16px; /* Standard padding */
             font-weight: 500;
-            transition: all 0.3s ease;
+            transition: background-color 0.3s ease;
         }
-        
+
         .stButton > button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            background-color: #0056b3; /* Darker blue on hover */
+            transform: none; /* Remove previous transform */
+            box-shadow: 0 2px 5px rgba(0, 91, 179, 0.3);
         }
-        
+
         /* Metric Values */
         .metric-value {
-            font-size: 3rem;
+            font-size: 2.5rem; /* Slightly smaller for balance */
             font-weight: bold;
-            background: linear-gradient(135deg, #34c759, #30d158);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #1a253c; /* Deep navy/charcoal, no gradient */
         }
-        
+
         .metric-trend-positive {
-            color: #34c759;
+            color: #28a745; /* Standard success green */
             font-size: 0.9rem;
             font-weight: 600;
         }
-        
+
         .metric-trend-negative {
-            color: #ff3b30;
+            color: #dc3545; /* Standard danger red */
             font-size: 0.9rem;
             font-weight: 600;
         }
-        
+
         /* Filters */
         .filter-container {
-            background-color: #f8f9fa;
+            background-color: #f8f9fa; /* Very light grey */
             padding: 1rem;
-            border-radius: 10px;
+            border-radius: 8px;
             margin-bottom: 2rem;
-            border-left: 4px solid #667eea;
+            border-left: 3px solid #007bff; /* Accent border */
         }
-        
+
         /* Chat Messages */
-        .stChatMessage {
-            background-color: #ffffff;
-            border-radius: 15px;
-            padding: 15px;
+        .stChatMessage[data-testid="stChatMessageContent"] { /* More specific selector */
+            border-radius: 10px;
+            padding: 12px;
             margin-bottom: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        
+        .stChatMessage[data-testid="stChatMessageContent"] > div[data-testid="stChatMessageContent"] {
+            /* Targeting inner div if necessary, sometimes Streamlit wraps content */
+        }
+
+        /* Targeting user and assistant messages based on Streamlit's structure (may need inspection) */
+        div[data-testid="stChatMessage"]:has(span[data-testid="chatAvatarIcon-user"]) .stChatMessage[data-testid="stChatMessageContent"] {
+            background-color: #e7f3ff; /* Light blue for user */
+        }
+        div[data-testid="stChatMessage"]:has(span[data-testid="chatAvatarIcon-assistant"]) .stChatMessage[data-testid="stChatMessageContent"] {
+            background-color: #f1f3f5; /* Light grey for assistant */
+        }
+
         /* Alerts */
         .alert-critical {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
+            background-color: #f8d7da; /* Bootstrap danger background */
+            color: #721c24; /* Bootstrap danger text */
+            border: 1px solid #f5c6cb; /* Bootstrap danger border */
+            padding: 1rem;
+            border-radius: 8px;
             margin: 10px 0;
         }
-        
+
         .alert-warning {
-            background: linear-gradient(135deg, #feca57, #ff9ff3);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
+            background-color: #fff3cd; /* Bootstrap warning background */
+            color: #856404; /* Bootstrap warning text */
+            border: 1px solid #ffeeba; /* Bootstrap warning border */
+            padding: 1rem;
+            border-radius: 8px;
             margin: 10px 0;
         }
     </style>
