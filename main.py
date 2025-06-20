@@ -44,115 +44,180 @@ def apply_custom_css():
         .stApp {
             background-color: #f0f2f5; /* Light grey background */
             color: #333; /* Default text color */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Softer font */
         }
 
         /* Sidebar Styling */
         .css-1d391kg { /* This class might change with Streamlit versions, be careful */
             background-color: #ffffff;
-            border-right: 1px solid #e0e0e0; /* Subtle separator */
+            border-right: 1px solid #e0e0e0;
             box-shadow: 2px 0 5px rgba(0,0,0,0.05);
         }
-
-        /* Main Content Area */
-        .main > div {
-            padding: 1.5rem; /* Adjusted padding */
-            background-color: #ffffff;
-            border-radius: 12px; /* Slightly softer radius */
-            margin: 1rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* Softer shadow */
+        .css-1d391kg .stMarkdown h1 { /* VOCAL title in sidebar */
+            color: #00529B; /* BCA Blue */
+            text-align: center;
+            font-weight: 700;
+        }
+        .css-1d391kg .stMarkdown h3 { /* Navigation, User Info in sidebar */
+            color: #00529B;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 0.3rem;
+            margin-top: 1rem;
         }
 
-        /* Metric Cards */
-        .metric-card {
+        /* Main Content Area - The overall white box */
+        .main > div:first-child > div:first-child { /* Target the primary content container */
+            padding: 1.5rem;
             background-color: #ffffff;
-            padding: 1.5rem; /* Consistent padding */
+            border-radius: 12px;
+            margin: 1rem; /* Margin around the main white content block */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        /* Content Block / Card Styling - General purpose card */
+        .content-block {
+            background-color: #ffffff;
+            padding: 1.5rem;
             border-radius: 10px;
-            border: 1px solid #e0e0e0; /* Subtle border */
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05); /* Even softer shadow */
-            margin-bottom: 20px;
+            border: 1px solid #e6e6e6; /* Slightly softer border */
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            margin-bottom: 1.5rem; /* Space below each block */
             transition: box-shadow 0.3s ease;
         }
-
-        .metric-card:hover {
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* Slightly more pronounced on hover */
+        .content-block:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
+        .content-block h3 { /* Titles inside content blocks */
+            color: #00529B; /* BCA Blue for titles */
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 0.5rem;
+        }
+
+
+        /* Metric Cards - Specialized for top widgets */
+        .metric-card { /* Keeping your original class for the top 3 widgets */
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            transition: box-shadow 0.3s ease;
+            height: 100%; /* Make cards in a row equal height */
+        }
+        .metric-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .metric-card h3 { /* Titles inside metric cards */
+            color: #00529B; /* BCA Blue */
+            font-size: 1.15rem; /* Slightly smaller than section headers */
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+        }
+
 
         /* Headers and Titles */
         .dashboard-header {
             text-align: center;
-            color: #1a253c; /* Deep navy/charcoal */
-            font-size: 2.2rem; /* Slightly adjusted */
-            font-weight: 600; /* Bold but not overly so */
-            margin-bottom: 1.5rem;
+            color: #003366; /* Darker BCA Blue */
+            font-size: 2.4rem;
+            font-weight: 700; /* Bolder */
+            margin-bottom: 0.5rem; /* Reduced bottom margin */
+        }
+        .dashboard-subheader { /* New class for the sub-header */
+            text-align: center;
+            color: #555;
+            font-size: 1rem;
+            margin-bottom: 2rem; /* Space before filters */
+            font-style: italic;
         }
 
         .section-header {
-            font-size: 1.3rem; /* Slightly smaller */
+            font-size: 1.5rem; /* Larger section headers */
             font-weight: 600;
-            color: #1a253c; /* Match dashboard header color */
-            /* border-bottom: 2px solid #007bff; */ /* Removing border bottom for a cleaner look */
-            padding-bottom: 0.3rem;
-            margin: 2.5rem 0 1.2rem 0; /* Adjust margins */
-            /* text-transform: uppercase; */ /* Optional: for a more distinct look */
-            /* letter-spacing: 0.5px; */ /* Optional */
+            color: #003366; /* Darker BCA Blue */
+            border-bottom: 2px solid #007bff; /* Accent blue line */
+            padding-bottom: 0.5rem;
+            margin: 3rem 0 1.5rem 0; /* More space above */
         }
 
         /* Buttons */
         .stButton > button {
             background-color: #007bff;
             color: white;
-            border-radius: 5px; /* Slightly less rounded for a sharper look */
+            border-radius: 6px; /* Slightly more rounded */
             border: none;
-            padding: 9px 18px; /* Adjusted padding */
+            padding: 10px 20px; /* More padding */
             font-weight: 500;
             transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Subtle shadow for depth */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         .stButton > button:hover {
             background-color: #0056b3;
-            box-shadow: 0 2px 4px rgba(0, 91, 179, 0.2); /* Slightly more shadow on hover */
+            box-shadow: 0 2px 5px rgba(0, 91, 179, 0.25);
+        }
+        .stButton > button.secondary { /* For secondary buttons */
+            background-color: #6c757d;
+        }
+        .stButton > button.secondary:hover {
+            background-color: #5a6268;
         }
 
-        /* Metric Values */
+
+        /* Metric Values Styling */
         .metric-value {
-            font-size: 2.5rem; /* Slightly smaller for balance */
-            font-weight: bold;
-            color: #1a253c; /* Deep navy/charcoal, no gradient */
+            font-size: 2.8rem; /* Larger */
+            font-weight: 700; /* Bolder */
+            color: #00529B; /* BCA Blue */
+            line-height: 1.1;
+            text-align: center; /* Center in its container */
         }
-
+        .metric-trend-container { /* Container for trend text */
+            text-align: center; /* Center trend text */
+            margin-top: 0.25rem;
+        }
         .metric-trend-positive {
-            color: #28a745; /* Standard success green */
-            font-size: 0.9rem;
+            color: #28a745;
+            font-size: 0.95rem;
             font-weight: 600;
         }
-
         .metric-trend-negative {
-            color: #dc3545; /* Standard danger red */
-            font-size: 0.9rem;
+            color: #dc3545;
+            font-size: 0.95rem;
             font-weight: 600;
         }
 
         /* Filters */
-        .filter-container {
-            background-color: #f8f9fa; /* Very light grey */
-            padding: 1rem;
+        .filter-container { /* Already good, minor tweaks */
+            background-color: #f8f9fa;
+            padding: 1.2rem 1.5rem; /* Slightly more padding */
             border-radius: 8px;
-            margin-bottom: 2rem;
-            border-left: 3px solid #007bff; /* Accent border */
+            margin-bottom: 2.5rem; /* More space below filters */
+            border-left: 4px solid #007bff; /* Thicker accent border */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .filter-container .stMarkdown > h3 { /* "Filters" title inside the container */
+            color: #00529B;
+            font-size: 1.2rem;
+            margin-top:0;
+            margin-bottom: 1rem;
         }
 
-        /* Chat Messages */
-        .stChatMessage[data-testid="stChatMessageContent"] { /* More specific selector */
+
+        /* Chat Messages (keeping your good styling) */
+        .stChatMessage[data-testid="stChatMessageContent"] {
             border-radius: 10px;
             padding: 12px;
             margin-bottom: 10px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .stChatMessage[data-testid="stChatMessageContent"] > div[data-testid="stChatMessageContent"] {
-            /* Targeting inner div if necessary, sometimes Streamlit wraps content */
-        }
-
-        /* Targeting user and assistant messages based on Streamlit's structure (may need inspection) */
         div[data-testid="stChatMessage"]:has(span[data-testid="chatAvatarIcon-user"]) .stChatMessage[data-testid="stChatMessageContent"] {
             background-color: #e7f3ff; /* Light blue for user */
         }
@@ -160,24 +225,68 @@ def apply_custom_css():
             background-color: #f1f3f5; /* Light grey for assistant */
         }
 
-        /* Alerts */
-        .alert-critical {
-            background-color: #f8d7da; /* Bootstrap danger background */
-            color: #721c24; /* Bootstrap danger text */
-            border: 1px solid #f5c6cb; /* Bootstrap danger border */
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 10px 0;
+        /* Alerts Styling in Widgets */
+        .alert-item {
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: 6px;
+            border-left-width: 4px;
+            border-left-style: solid;
+        }
+        .alert-critical-item { /* For items within the Alerts widget */
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left-color: #dc3545; /* Red */
+        }
+        .alert-warning-item { /* For items within the Alerts widget */
+            background-color: #fff3cd;
+            color: #856404;
+            border-left-color: #ffc107; /* Yellow */
+        }
+        .alert-item strong {
+            font-weight: 600;
+        }
+        .alert-item ul {
+            padding-left: 20px;
+            margin-top: 0.5rem;
+            margin-bottom: 0.2rem;
         }
 
-        .alert-warning {
-            background-color: #fff3cd; /* Bootstrap warning background */
-            color: #856404; /* Bootstrap warning text */
-            border: 1px solid #ffeeba; /* Bootstrap warning border */
+        /* Theme/Opportunity Item Styling */
+        .theme-item, .opportunity-item {
             padding: 1rem;
+            border: 1px solid #e9ecef;
             border-radius: 8px;
-            margin: 10px 0;
+            margin-bottom: 1rem;
+            background-color: #fdfdfd;
         }
+        .theme-item strong, .opportunity-item strong {
+            color: #00529B; /* BCA Blue for emphasis */
+            font-size: 1.05rem;
+        }
+        .theme-item .stMarkdown p, .opportunity-item .stMarkdown p {
+            margin-bottom: 0.3rem; /* Tighter spacing for list-like items */
+        }
+        .theme-quote {
+            font-style: italic;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+        }
+        .theme-quote.positive {
+            background-color: #e6ffed;
+            border-left: 3px solid #28a745;
+        }
+        .theme-quote.negative {
+            background-color: #ffebee;
+            border-left: 3px solid #dc3545;
+        }
+
+        /* Helper class for vertical spacing */
+        .spacer-sm { margin-bottom: 0.5rem; }
+        .spacer-md { margin-bottom: 1rem; }
+        .spacer-lg { margin-bottom: 2rem; }
+
     </style>
     """, unsafe_allow_html=True)
 
