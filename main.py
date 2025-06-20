@@ -790,85 +790,88 @@ def render_health_score_widget(health_data):
 
     st.markdown('</div>', unsafe_allow_html=True) # This closes the metric-card div
 
-def render_alerts_widget(alerts_data): # Modified to accept data
-   """Render the critical alerts widget - now data-driven"""
+def render_alerts_widget(): # Hapus parameter alerts_data
+   """Render the critical alerts widget (Hardcoded)"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
    st.markdown("### 🚨 Critical Alerts")
 
-   if alerts_data:
-       # Display a limited number of alerts, e.g., top 3
-       for alert in alerts_data[:3]: # Show top 3 alerts
-           alert_class = "alert-critical" if "🚨" in alert['title'] else "alert-warning"
-           st.markdown(f'<div class="{alert_class}">', unsafe_allow_html=True)
-           st.markdown(f"**{alert['title']}**")
-           st.markdown(f"{alert['details']}")
-           if "action" in alert and alert['action']:
-               st.markdown(f"- **Suggestion**: {alert['action']}")
-           st.markdown('</div>', unsafe_allow_html=True)
-       if len(alerts_data) > 3:
-            st.caption(f"...and {len(alerts_data) - 3} more alerts. Click 'View All Alerts'.")
-   else:
-       st.success("✅ No critical alerts identified based on current data and thresholds.") # Changed to st.success
+   # Konten Hardcoded untuk Alerts
+   st.markdown('<div class="alert-critical">', unsafe_allow_html=True)
+   st.markdown("""
+   **🔴 Sudden Spike in Negative Sentiment for MyBCA**
+   - Product: MyBCA
+   - Detail: 45% negative sentiment in the last 24 hours (150 mentions).
+   - Key Issues: Login failures, App crashes after update X.Y.
+   - **Suggestion**: Immediate technical review and rollback consideration.
+   """)
+   st.markdown('</div>', unsafe_allow_html=True)
+
+   st.markdown('<div class="alert-warning">', unsafe_allow_html=True)
+   st.markdown("""
+   **🟡 High Churn Risk Pattern for Kartu Kredit**
+   - Product: Kartu Kredit
+   - Pattern: Repeated complaints about annual fee and customer service response time.
+   - Affected: ~12 distinct customer patterns identified this week.
+   - **Suggestion**: Proactive outreach to affected customers, review fee structure communication.
+   """)
+   st.markdown('</div>', unsafe_allow_html=True)
+
+   # Tambahkan contoh lain jika perlu
+   # st.markdown('<div class="alert-warning">', unsafe_allow_html=True)
+   # st.markdown("""
+   # **🟡 Increased Complaints about ATM Availability**
+   # - Channel: ATM Network
+   # - Detail: 20% increase in complaints about 'ATM offline' or 'ATM no cash'.
+   # - Locations: Area X, Y, Z
+   # - **Suggestion**: Check ATM network status in affected areas, schedule maintenance.
+   # """)
+   # st.markdown('</div>', unsafe_allow_html=True)
 
    col1, col2 = st.columns(2)
    with col1:
-       if st.button("🔍 View All Alerts", type="primary", key="view_all_alerts_btn"): # Added key
-           # This would typically navigate to another page or show a modal
-           # For now, let's just show them all in an expander if clicked
-           if alerts_data:
-                with st.expander("All Identified Alerts", expanded=True):
-                    for alert in alerts_data:
-                        alert_class = "alert-critical" if "🚨" in alert['title'] else "alert-warning"
-                        st.markdown(f'<div class="{alert_class}" style="margin-bottom: 5px;">', unsafe_allow_html=True)
-                        st.markdown(f"**{alert['title']}**")
-                        st.markdown(f"{alert['details']}")
-                        if "action" in alert and alert['action']:
-                            st.markdown(f"- **Suggestion**: {alert['action']}")
-                        st.markdown('</div>', unsafe_allow_html=True)
-           else:
-                st.info("No alerts to display.")
+       if st.button("🔍 View All Alerts", type="primary", key="view_all_alerts_btn_hc"): # Key bisa diganti jika perlu
+           st.info("This section would show more hardcoded examples or a link to a static report.")
 
    with col2:
-       if st.button("📋 Create Action Plan", type="secondary", key="create_action_plan_btn"): # Added key
-           st.info("Action Plan feature coming soon!") # Placeholder
+       if st.button("📋 Create Action Plan", type="secondary", key="create_action_plan_btn_hc"):
+           st.info("Action Plan feature coming soon!")
 
    st.markdown('</div>', unsafe_allow_html=True)
 
-def render_hotspots_widget(hotspots_data): # Modified to accept data
-   """Render the predictive hotspots widget - focusing on emerging issues"""
+def render_hotspots_widget(): # Hapus parameter hotspots_data
+   """Render the predictive hotspots widget (Hardcoded)"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-   st.markdown("### 🔮 Emerging Customer Hotspots") # Changed title
+   st.markdown("### 🔮 Emerging Customer Hotspots") # Judul tetap
 
-   if hotspots_data:
-       for hotspot in hotspots_data[:2]: # Show top 2 emerging hotspots
-           st.markdown(f"**{hotspot['title']}**")
-           st.markdown(f"{hotspot['details']}")
-           if "action" in hotspot and hotspot['action']:
-               st.markdown(f"_{hotspot['action']}_")
-           st.markdown("---")
-       if not hotspots_data: # Add this check in case only 1 or 0 hotspots
-            st.info("No significant emerging hotspots identified this week.")
-       elif len(hotspots_data) > 2 :
-            st.caption(f"...and {len(hotspots_data) - 2} more emerging topics.")
+   # Konten Hardcoded untuk Hotspots
+   st.markdown("**📈 Confusion about New Savings Account Interest Rates**")
+   st.markdown("- Detail: Increased mentions of 'interest rate', 'confused', 'how it works' related to new 'TabunganMAXI' product.")
+   st.markdown("- Impact: Medium. Potential for dissatisfaction if not addressed.")
+   st.markdown("- _Suggestion: Proactively send clearer communication, update FAQ, train CS agents._")
+   st.markdown("---")
 
-   else:
-       st.info("✅ No significant emerging hotspots identified this week based on current data.")
+   st.markdown("**🆕 User Interface (UI) Feedback for Mobile Banking Update**")
+   st.markdown("- Detail: Mix of positive and negative feedback on new UI. Some users find it 'cleaner', others 'hard to navigate'.")
+   st.markdown("- Impact: Low-Medium. Monitor closely for consistent negative patterns.")
+   st.markdown("- _Suggestion: Gather specific UI pain points, consider A/B testing for problematic flows._")
+   st.markdown("---")
 
-   # Metrics can now be dynamic based on counts
-   # For simplicity, we'll keep the st.metric static for now,
-   # but you could count types of alerts/hotspots.
-   num_emerging = len(hotspots_data)
-   # These are still somewhat placeholders as "Trending" and "Predicted" are not fully implemented
-   st.markdown("---") # Separator before metrics
+   # st.markdown("**⚠️ Potential Issue: Delays in Loan Application Process**")
+   # st.markdown("- Detail: Early signs of increased mentions of 'waiting too long', 'slow process' for KPR applications.")
+   # st.markdown("- Impact: Low. Monitor application turnaround times.")
+   # st.markdown("- _Suggestion: Review current loan processing pipeline for bottlenecks._")
+   # st.markdown("---")
+
+
+   # Metrik bisa tetap hardcoded atau disesuaikan
+   st.markdown("---")
    col1, col2, col3 = st.columns(3)
    with col1:
-       st.metric("Emerging Topics", f"{num_emerging}", delta=f"{num_emerging - st.session_state.get('prev_emerging_count', 0)}")
+       st.metric("Emerging Topics", "2", delta="+1 vs last period") # Contoh delta statis
    with col2:
-       st.metric("Trending Topics", "N/A") # Placeholder
+       st.metric("Trending Topics", "5") # Contoh statis
    with col3:
-       st.metric("Predicted Risks", "N/A") # Placeholder
-
-   st.session_state['prev_emerging_count'] = num_emerging # Store for next run delta
+       st.metric("Predicted Risks", "1") # Contoh statis
 
    st.markdown('</div>', unsafe_allow_html=True)
     
@@ -1333,58 +1336,6 @@ def main():
        # Process analytics data (menggunakan filtered_df)
        analytics_data = process_filtered_data(filtered_df)
 
-       # --- Calculate Real-time Alerts and Hotspots ---
-       # (Kode dari Langkah 2 untuk kalkulasi alerts dan hotspots ada di sini)
-       TEXT_COLUMN_NAME = 'masked_text' 
-
-       temp_master_df_for_alerts = master_df.copy() # Gunakan salinan untuk modifikasi aman
-       if not temp_master_df_for_alerts.empty:
-           if TEXT_COLUMN_NAME not in temp_master_df_for_alerts.columns:
-               st.warning(f"Warning: Text column '{TEXT_COLUMN_NAME}' not found in data for alerts/hotspots. Results may be limited.")
-               temp_master_df_for_alerts[TEXT_COLUMN_NAME] = "" # Buat kolom dummy jika tidak ada
-           else:
-                # Pastikan kolom masked_text adalah string dan handle NaN
-                temp_master_df_for_alerts[TEXT_COLUMN_NAME] = temp_master_df_for_alerts[TEXT_COLUMN_NAME].fillna('').astype(str)
-
-
-       critical_sentiment_alerts = calculate_sentiment_alerts(
-           temp_master_df_for_alerts,
-           product_col='Product',
-           sentiment_col='Sentimen',
-           time_window_days=1,
-           neg_sentiment_threshold=0.40,
-           min_mentions=5
-       )
-
-       keyword_spike_alerts = []
-       if TEXT_COLUMN_NAME in temp_master_df_for_alerts.columns and not temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""].empty:
-           keyword_spike_alerts = find_keyword_spikes(
-               temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""], # Filter baris kosong untuk keyword spike
-               text_col=TEXT_COLUMN_NAME,
-               product_col='Product',
-               sentiment_col='Sentimen',
-               time_window_days=1,
-               keyword_threshold_mentions=3
-           )
-
-       all_critical_alerts = critical_sentiment_alerts + keyword_spike_alerts
-       all_critical_alerts.sort(key=lambda x: x['title'])
-
-
-       emerging_issues_hotspots = []
-       if TEXT_COLUMN_NAME in temp_master_df_for_alerts.columns and not temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""].empty:
-           emerging_issues_hotspots = identify_emerging_issues(
-               temp_master_df_for_alerts[temp_master_df_for_alerts[TEXT_COLUMN_NAME] != ""],
-               text_col=TEXT_COLUMN_NAME,
-               date_col='Date',
-               product_col='Product',
-               current_week_days=7,
-               prev_week_days=7,
-               min_mentions_increase=2,
-               min_percentage_increase=30
-           )
-       # --- End Calculation ---
-
        # Get health score data
        health_score_data = generate_health_score_data()
        time_period_map = {
@@ -1405,10 +1356,10 @@ def main():
            render_health_score_widget(current_health_data)
 
        with col2:
-           render_alerts_widget(all_critical_alerts) # Mengirimkan data alerts
+           render_alerts_widget() # Mengirimkan data alerts
 
        with col3:
-           render_hotspots_widget(emerging_issues_hotspots) # Mengirimkan data hotspots
+           render_hotspots_widget() # Mengirimkan data hotspots
        # --- Akhir Langkah 5 ---
 
        # Customer voice snapshot (menggunakan analytics_data dari filtered_df)
