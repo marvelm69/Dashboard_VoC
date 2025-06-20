@@ -942,7 +942,7 @@ def render_opportunity_radar():
    col1, col2, col3 = st.columns(3)
    
    with col1:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+ 
        st.markdown("### 🎉 Delightful Features")
        st.markdown("""
        **Instant Card Activation**
