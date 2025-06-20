@@ -3,31 +3,33 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-import random # Kept for any potential future use, but not directly used for core data
+import random
 import uuid
-import json # For GCP creds
-from openai import OpenAI
+import json
+from openai import OpenAI # Ensure openai library is installed: pip install openai
 from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta # For more complex date manipulations
 
 # --- Google Sheets Integration ---
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-# Replace with your actual Spreadsheet ID if different
-SPREADSHEET_ID = st.secrets.get("google_sheets", {}).get("spreadsheet_id", '1V5cRgnnN5GTFsD9bR05hLzsKRWkhdEy3LhuTvSnUyIM') # Example
-RANGE_NAME = st.secrets.get("google_sheets", {}).get("range_name", 'sheet1!A:H') # Example
+SPREADSHEET_ID = '1V5cRgnnN5GTFsD9bR05hLzsKRWkhdEy3LhuTvSnUyIM'
+RANGE_NAME = 'sheet1!A:H'
 
 @st.cache_data(ttl=600)
 def load_data_from_google_sheets():
     try:
+        # Access individual fields from the TOML table
         gcp_creds_table = st.secrets["gcp_service_account_credentials"]
+
+        # Reconstruct the JSON structure expected by from_service_account_info
         creds_info = {
             "type": gcp_creds_table["type"],
             "project_id": gcp_creds_table["project_id"],
             "private_key_id": gcp_creds_table["private_key_id"],
-            "private_key": gcp_creds_table["private_key"].replace('\\n', '\n'),
+            "private_key": gcp_creds_table["private_key"].replace('\\n', '\n'), # Important: unescape \n for from_service_account_info
             "client_email": gcp_creds_table["client_email"],
             "client_id": gcp_creds_table["client_id"],
             "auth_uri": gcp_creds_table["auth_uri"],
@@ -36,64 +38,43 @@ def load_data_from_google_sheets():
             "client_x509_cert_url": gcp_creds_table["client_x509_cert_url"],
             "universe_domain": gcp_creds_table["universe_domain"]
         }
-        creds = service_account.Credentials.from_service_account_info(creds_info, scopes=SCOPES)
+
+        creds = service_account.Credentials.from_service_account_info(
+            creds_info, scopes=SCOPES)
+
         service = build('sheets', 'v4', credentials=creds)
-        result = service.spreadsheets().values().get(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
+
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
         values = result.get('values', [])
-
-        if not values or len(values) < 2: # Check for header and at least one data row
-            st.error("No data or only header found in the Google Sheet.")
-            return pd.DataFrame(columns=['Date', 'Product', 'Channel', 'Sentimen', 'Intent', 'Interaction ID', 'Details', 'Customer ID']) # Ensure essential columns exist
-
-        df = pd.DataFrame(values[1:], columns=values[0])
-
-        # Standardize column names and types
-        expected_columns = {
-            'Date': 'datetime64[ns]',
-            'Product': 'str',
-            'Channel': 'str',
-            'Sentimen': 'str',
-            'Intent': 'str',
-            'Interaction ID': 'str',
-            'Details': 'str',
-            'Customer ID': 'str'
-        }
-        # Ensure all expected columns exist, fill with NA if not
-        for col, dtype in expected_columns.items():
-            if col not in df.columns:
-                df[col] = pd.NA
-            if col == 'Date':
-                 # Attempt to parse 'Date' with multiple formats
-                try:
-                    df['Date'] = pd.to_datetime(df['Date'], errors='coerce') # General parser first
-                except Exception: # If general fails, try specific
-                    df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y', errors='coerce')
-
+        if not values:
+            st.error("No data found in the Google Sheet.")
+            return pd.DataFrame()
+        else:
+            df = pd.DataFrame(values[1:], columns=values[0])
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y', errors='coerce')
                 df.dropna(subset=['Date'], inplace=True)
-            elif col in ['Product', 'Channel']:
-                df[col] = df[col].astype(str).str.lower().str.replace(" ", "_").str.strip()
-            elif col == 'Sentimen':
-                df[col] = df[col].astype(str).str.capitalize().str.strip()
-                # Standardize sentiment values
-                sentiment_mapping = {
-                    "Positive": "Positif", "Positive ": "Positif",
-                    "Negative": "Negatif", "Negative ": "Negatif",
-                    "Neutral": "Netral", "Neutral ": "Netral",
-                }
-                df['Sentimen'] = df['Sentimen'].replace(sentiment_mapping)
             else:
-                df[col] = df[col].astype(str).str.strip()
-        return df
+                st.warning("Column 'Date' not found in Google Sheet. Time filtering will not work correctly.")
+            if 'Product' in df.columns:
+                df['Product'] = df['Product'].astype(str).str.lower().str.replace(" ", "_")
+            if 'Channel' in df.columns:
+                df['Channel'] = df['Channel'].astype(str).str.lower().str.replace(" ", "_")
+            if 'Sentimen' in df.columns:
+                df['Sentimen'] = df['Sentimen'].astype(str).str.capitalize()
+            if 'Intent' in df.columns:
+                df['Intent'] = df['Intent'].astype(str)
+            return df
     except KeyError as e:
-        st.error(f"Missing secret: {e}. Please ensure 'gcp_service_account_credentials' and potentially 'google_sheets' config are set in your Streamlit secrets.")
-        return pd.DataFrame(columns=['Date', 'Product', 'Channel', 'Sentimen', 'Intent']) # Return empty DF with expected columns
+        st.error(f"Missing secret: {e}. Please ensure 'gcp_service_account_credentials' is set in your Streamlit secrets.")
+        return pd.DataFrame()
     except json.JSONDecodeError:
         st.error("Error decoding GCP credentials from Streamlit secrets. Please check the format in secrets.toml.")
-        return pd.DataFrame(columns=['Date', 'Product', 'Channel', 'Sentimen', 'Intent'])
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"Error loading data from Google Sheets: {e}")
-        # Log full error for debugging if needed: print(f"Full GSheets Error: {e}", file=sys.stderr)
-        return pd.DataFrame(columns=['Date', 'Product', 'Channel', 'Sentimen', 'Intent'])
+        return pd.DataFrame()
 
 # Set page configuration
 st.set_page_config(
@@ -102,7 +83,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for enhanced styling
+# Custom CSS for enhanced styling (same as before)
 st.markdown("""
 <style>
     .stApp {
@@ -131,12 +112,6 @@ st.markdown("""
         border-radius: 10px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         margin-bottom: 20px;
-        height: 100%; /* Ensure cards in a row have same height */
-        display: flex; /* For vertical alignment of content if needed */
-        flex-direction: column; /* Stack content vertically */
-    }
-    .metric-card-content { /* Wrapper for content that needs to be flexible */
-        flex-grow: 1;
     }
     .metric-title {
         font-size: 18px;
@@ -146,7 +121,7 @@ st.markdown("""
     .metric-value {
         font-size: 32px;
         font-weight: bold;
-        color: #34c759; /* Default positive, can be overridden */
+        color: #34c759;
     }
     .metric-trend-positive {
         color: #34c759;
@@ -190,48 +165,37 @@ Selalu dasarkan jawaban Anda pada data yang diberikan dalam `dashboard_state`.
 Gunakan bahasa Indonesia yang sopan dan mudah dimengerti.
 Jika ada pertanyaan yang tidak dapat dijawab dari data dasbor, sampaikan dengan sopan bahwa informasi tersebut tidak tersedia dalam tampilan dasbor saat ini atau minta pengguna untuk memberikan detail lebih lanjut.
 Berikan analisis yang ringkas namun mendalam.
-Jika ada pertanyaan yang diluar konteks analisis anda, sampaikan bahwa itu diluar kapabilitas anda untuk menjelaskannya.
+Jika ada pertanyaan yang diluar konteks analisis anda, sampaikan bahwa itu diluar kapabilitas anda untuk menjelaskannya
 
 PENTING:
 Sebelum memberikan jawaban akhir kepada pengguna, Anda BOLEH melakukan analisis internal atau "berpikir".
 Jika Anda melakukan proses berpikir internal, *JANGAN* tuliskan pemikiran tersebut.
-Jika tidak ada proses berpikir khusus atau analisis internal yang perlu dituliskan, langsung berikan jawaban.
+Jika tidak ada proses berpikir khusus atau analisis internal yang perlu dituliskan, langsung berikan jawaban
 """
-try:
-    client = OpenAI(
-      base_url = "https://integrate.api.nvidia.com/v1",
-      api_key = st.secrets["nvidia_api"]["api_key"]
-    )
-except KeyError:
-    st.error("NVIDIA API key not found in secrets. Please add `nvidia_api.api_key` to your secrets.toml.")
-    client = None # Prevent further errors if client is not initialized
-except Exception as e:
-    st.error(f"Error initializing NVIDIA client: {e}")
-    client = None
 
+client = OpenAI(
+  base_url = "https://integrate.api.nvidia.com/v1",
+  api_key = "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" # Replace with your actual API key or use secrets
+)
 
 def generate_llm_response(user_prompt: str, dashboard_state: dict, system_prompt: str):
-    if not client:
-        yield "Maaf, layanan AI tidak dapat diinisialisasi. Silakan periksa konfigurasi."
-        return
-
     dashboard_summary_for_llm = f"""
 Ringkasan tampilan dasbor saat ini berdasarkan filter yang dipilih:
 - Periode Waktu Terpilih: {dashboard_state.get('time_period_label_llm', 'N/A')}
-- Skor Kesehatan Pelanggan (Contoh/Static): {dashboard_state.get('score', 'N/A')}% (Tren: {dashboard_state.get('trend', 'N/A')} - {dashboard_state.get('trend_label', 'N/A')})
+- Skor Kesehatan Pelanggan (Contoh): {dashboard_state.get('score', 'N/A')}% (Tren: {dashboard_state.get('trend', 'N/A')} - {dashboard_state.get('trend_label', 'N/A')})
 
 Data dari Google Sheet (berdasarkan filter saat ini):
 - Total Interaksi dalam Periode: {dashboard_state.get('total_interactions', 'N/A')}
-- Distribusi Sentimen: {'; '.join([f"{k}: {v}" for k, v in dashboard_state.get('sentiment_summary', {}).items()]) if dashboard_state.get('sentiment_summary') and "Info" not in dashboard_state.get('sentiment_summary') else 'Tidak ada data sentimen untuk filter ini.'}.
-- Distribusi Niat (Top 5): {'; '.join([f"{k}: {v}" for k, v in dashboard_state.get('intent_summary', {}).items()]) if dashboard_state.get('intent_summary') and "Info" not in dashboard_state.get('intent_summary') else 'Tidak ada data niat untuk filter ini.'}.
-- Tren Volume Harian: {dashboard_state.get('volume_summary', 'N/A')}.
+- Distribusi Sentimen: {'; '.join([f"{k}: {v}" for k, v in dashboard_state.get('sentiment_summary', {}).items()]) if dashboard_state.get('sentiment_summary') else 'Tidak ada data sentimen untuk filter ini.'}.
+- Distribusi Niat: {'; '.join([f"{k}: {v}" for k, v in dashboard_state.get('intent_summary', {}).items()]) if dashboard_state.get('intent_summary') else 'Tidak ada data niat untuk filter ini.'}.
+- Tren Volume: {dashboard_state.get('volume_summary', 'N/A')}.
 
 Informasi Dasbor Umum Lainnya (ini adalah contoh, peringatan/hotspot spesifik dapat bervariasi dan harus diperiksa pada kartunya masing-masing):
-- Peringatan Kritis: (Contoh) "Lonjakan Mendadak dalam Sentimen Negatif", "Risiko Churn Tinggi".
-- Hotspot Prediktif: (Contoh) "Kebingungan Kebijakan", "Masalah UI".
-- Tema Pelanggan Teratas (Positif): (Contoh) "Layanan Pelanggan Cepat", "Mobile Banking Mudah".
-- Tema Pelanggan Teratas (Negatif): (Contoh) "Masalah Teknis Aplikasi", "Waktu Tunggu Lama".
-- Radar Peluang: (Contoh) "Fitur yang Menyenangkan", "Peluang Cross-Sell", "Keunggulan Layanan".
+- Peringatan Kritis: Dapat menyoroti masalah seperti "Lonjakan Mendadak dalam Sentimen Negatif" atau "Risiko Churn Tinggi".
+- Hotspot Prediktif: Bisa menunjuk ke "Kebingungan Kebijakan" atau "Masalah UI".
+- Tema Pelanggan Teratas (Positif): Contohnya "Layanan Pelanggan Cepat", "Mobile Banking Mudah".
+- Tema Pelanggan Teratas (Negatif): Contohnya "Masalah Teknis Aplikasi", "Waktu Tunggu Lama".
+- Radar Peluang: Mengidentifikasi area seperti "Fitur yang Menyenangkan", "Peluang Cross-Sell", "Keunggulan Layanan".
 """
     constructed_messages = [
         {"role": "system", "content": system_prompt},
@@ -239,10 +203,10 @@ Informasi Dasbor Umum Lainnya (ini adalah contoh, peringatan/hotspot spesifik da
     ]
     try:
         completion = client.chat.completions.create(
-            model="nvidia/llama-3.1-nemotron-nano-vl-8b-v1", # Or your preferred model
+            model="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
             messages=constructed_messages,
-            temperature=0.5,
-            top_p=0.7,
+            temperature=0.5, # Adjusted for more factual responses
+            top_p=0.7,       # Adjusted
             max_tokens=1024,
             stream=True
         )
@@ -251,10 +215,10 @@ Informasi Dasbor Umum Lainnya (ini adalah contoh, peringatan/hotspot spesifik da
                 yield chunk.choices[0].delta.content
     except Exception as e:
         error_message = f"Maaf, terjadi kesalahan saat menghubungi layanan AI: {str(e)}. Silakan coba lagi nanti atau periksa konsol."
-        print(f"LLM API Error: {e}") # Log error to console for debugging
+        print(f"LLM API Error: {e}")
         yield error_message
 
-# Generate health score data (remains static as per original design preference)
+# Generate health score data (remains static for now)
 def generate_health_score_data():
     return {
         "today": {"labels": ["9 AM", "11 AM", "1 PM", "3 PM", "5 PM", "7 PM", "9 PM"], "values": [78, 76, 80, 79, 81, 83, 84], "score": 84, "trend": "+2.5%", "trend_positive": True, "trend_label": "vs. yesterday"},
@@ -267,10 +231,8 @@ def generate_health_score_data():
 
 # --- Load Data ---
 master_df = load_data_from_google_sheets()
-if master_df.empty and ('Date' not in master_df.columns or 'Product' not in master_df.columns or 'Channel' not in master_df.columns):
-    st.warning("Master data is empty or critical columns are missing. Dashboard functionality will be limited.")
 
-# Sidebar
+# Sidebar (same as before)
 with st.sidebar:
     st.title("VOCAL")
     st.markdown("---")
@@ -303,14 +265,14 @@ if page == "Dashboard":
 
     # Get unique products and channels from the master_df for filter options
     if not master_df.empty and 'Product' in master_df.columns:
-        available_products = sorted([p.replace("_", " ").title() for p in master_df['Product'].dropna().unique() if p])
+        available_products = sorted(list(master_df['Product'].str.replace("_", " ").str.title().unique()))
     else:
-        available_products = ["myBCA", "BCA Mobile", "KPR", "KKB"] # Fallback
+        available_products = ["myBCA", "BCA Mobile", "KPR", "KKB", "KSM", "Investasi", "Asuransi", "KMK", "Kartu Kredit", "EDC & QRIS", "Poket Valas"] # Fallback
 
     if not master_df.empty and 'Channel' in master_df.columns:
-        available_channels = sorted([c.replace("_", " ").title() for c in master_df['Channel'].dropna().unique() if c])
+        available_channels = sorted(list(master_df['Channel'].str.replace("_", " ").str.title().unique()))
     else:
-        available_channels = ["Social Media", "Call Center", "WhatsApp"] # Fallback
+        available_channels = ["Social Media", "Call Center", "WhatsApp", "Webchat", "VIRA", "E-mail", "Survey Gallup", "Survey BSQ", "Survey CX"] # Fallback
 
     with col2:
         selected_products_display = st.multiselect(
@@ -330,54 +292,47 @@ if page == "Dashboard":
     # --- FILTERING LOGIC ---
     filtered_df = master_df.copy()
 
-    if not filtered_df.empty and 'Date' in filtered_df.columns and pd.api.types.is_datetime64_any_dtype(filtered_df['Date']):
+    if not filtered_df.empty and 'Date' in filtered_df.columns:
         today = pd.Timestamp('today').normalize()
-        current_year = today.year
-        current_month = today.month
-
         if time_period_option == "Today":
             filtered_df = filtered_df[filtered_df['Date'] == today]
-        elif time_period_option == "This Week": # Monday to Sunday
+        elif time_period_option == "This Week":
             start_of_week = today - pd.to_timedelta(today.dayofweek, unit='D')
             end_of_week = start_of_week + pd.to_timedelta(6, unit='D')
             filtered_df = filtered_df[(filtered_df['Date'] >= start_of_week) & (filtered_df['Date'] <= end_of_week)]
         elif time_period_option == "This Month":
             start_of_month = today.replace(day=1)
-            # end_of_month = (start_of_month + pd.DateOffset(months=1)) - pd.DateOffset(days=1) # More robust way
-            end_of_month = start_of_month + relativedelta(months=1, days=-1)
+            end_of_month = (start_of_month + pd.DateOffset(months=1)) - pd.DateOffset(days=1)
             filtered_df = filtered_df[(filtered_df['Date'] >= start_of_month) & (filtered_df['Date'] <= end_of_month)]
         elif time_period_option == "This Quarter":
-            # Calculate quarter start and end
-            current_quarter = (current_month - 1) // 3 + 1
-            start_of_quarter = pd.Timestamp(datetime(current_year, 3 * current_quarter - 2, 1))
-            end_of_quarter = start_of_quarter + relativedelta(months=3, days=-1)
+            start_of_quarter = today.to_period('Q').start_time
+            end_of_quarter = today.to_period('Q').end_time
             filtered_df = filtered_df[(filtered_df['Date'] >= start_of_quarter) & (filtered_df['Date'] <= end_of_quarter)]
         elif time_period_option == "This Year":
             start_of_year = today.replace(month=1, day=1)
-            end_of_year = today.replace(month=12, day=31) # Correctly captures end of year
+            end_of_year = today.replace(month=12, day=31)
             filtered_df = filtered_df[(filtered_df['Date'] >= start_of_year) & (filtered_df['Date'] <= end_of_year)]
         # "All Periods" means no date filtering beyond initial load
-    elif time_period_option != "All Periods" and ('Date' not in filtered_df.columns or not pd.api.types.is_datetime64_any_dtype(filtered_df['Date'])):
-        st.caption(f"Warning: 'Date' column missing or not in datetime format for '{time_period_option}' filtering. Showing all available data for other filters.")
-    elif master_df.empty:
-         st.caption("No data loaded, filtering cannot be applied.")
+    elif time_period_option != "All Periods":
+        st.caption(f"Warning: 'Date' column not available for '{time_period_option}' filtering. Showing all data.")
 
 
     if "All Products" not in selected_products_display and selected_products_display:
         selected_products_internal = [p.lower().replace(" ", "_") for p in selected_products_display]
         if 'Product' in filtered_df.columns:
             filtered_df = filtered_df[filtered_df['Product'].isin(selected_products_internal)]
-        elif not master_df.empty: # Only show warning if master_df wasn't empty to begin with
+        else:
             st.caption("Warning: 'Product' column not available for filtering.")
+
 
     if "All Channels" not in selected_channels_display and selected_channels_display:
         selected_channels_internal = [c.lower().replace(" ", "_") for c in selected_channels_display]
         if 'Channel' in filtered_df.columns:
             filtered_df = filtered_df[filtered_df['Channel'].isin(selected_channels_internal)]
-        elif not master_df.empty:
+        else:
             st.caption("Warning: 'Channel' column not available for filtering.")
 
-    # Health score data (static, selected by time_period_option)
+    # Health score data (static for now)
     health_score_data_source = generate_health_score_data()
     time_period_map_health = {
         "All Periods": "all", "Today": "today", "This Week": "week",
@@ -385,26 +340,24 @@ if page == "Dashboard":
     }
     selected_time_key_health = time_period_map_health.get(time_period_option, "month")
     current_health_data = health_score_data_source.get(selected_time_key_health, health_score_data_source["month"]).copy()
-    current_health_data['time_period_label_display'] = time_period_option # For display on the card
+    current_health_data['time_period_label'] = time_period_option
 
     # --- Dashboard widgets ---
     st.markdown("## Dashboard Widgets")
-    row1_col1, row1_col2, row1_col3 = st.columns(3)
+    col1, col2, col3 = st.columns(3)
 
-    with row1_col1:
+    with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>Customer Health Score</span>", unsafe_allow_html=True)
-        # health_view = st.radio("View", ["Real-time", "Daily Trend", "Comparison"], horizontal=True, key="health_view") # Removed for simplicity, can be added back
-
+        st.markdown("### Customer Health Score")
+        health_view = st.radio("View", ["Real-time", "Daily Trend", "Comparison"], horizontal=True, key="health_view")
         score_col1, score_col2 = st.columns([1, 2])
         with score_col1:
-            st.markdown(f'<div class="metric-value" style="color: #34c759;">{current_health_data["score"]}%</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-value">{current_health_data["score"]}%</div>', unsafe_allow_html=True)
         with score_col2:
             trend_icon = "↑" if current_health_data["trend_positive"] else "↓"
             trend_class = "metric-trend-positive" if current_health_data["trend_positive"] else "metric-trend-negative"
             st.markdown(f'<div class="{trend_class}">{trend_icon} {current_health_data["trend"]} {current_health_data["trend_label"]}</div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True) # For chart
         fig_health = go.Figure()
         fig_health.add_trace(go.Scatter(
             x=current_health_data["labels"], y=current_health_data["values"], mode='lines', fill='tozeroy',
@@ -416,59 +369,51 @@ if page == "Dashboard":
             yaxis=dict(showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(color='#4a4a4f', size=9), range=[min(current_health_data["values"]) - 2, max(current_health_data["values"]) + 2])
         )
         st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True) # Close metric-card-content
-        st.markdown("<small>Overall customer satisfaction index. Trend shown vs. previous period.</small>", unsafe_allow_html=True)
+        st.markdown("Overall customer satisfaction is strong, showing a positive trend this month.") # Example text
         st.markdown('</div>', unsafe_allow_html=True)
 
-
-    with row1_col2: # Critical Alerts (static content from design)
+    with col2: # Critical Alerts (static content)
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>Critical Alerts</span>", unsafe_allow_html=True)
-        alert_view = st.radio("View", ["Critical", "High", "Medium", "All"], horizontal=True, key="alert_view_r1c2") # Unique key
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
+        st.markdown("### Critical Alerts")
+        alert_view = st.radio("View", ["Critical", "High", "Medium", "All"], horizontal=True, key="alert_view")
         st.markdown("""
-        <small>
-        **Sudden Spike in Negative Sentiment**<br>
-        - Mobile App Update X.Y: 45% negative<br>
-        - Volume: 150 mentions / 3 hrs<br>
-        - Issues: Login Failed, App Crashing<br><br>
-        **High Churn Risk Pattern Detected**<br>
-        - Pattern: Repeated Billing Errors - Savings<br>
-        - 12 unique customer patterns<br>
-        - Avg. sentiment: -0.8
-        </small>
+        **Sudden Spike in Negative Sentiment**  
+        - Mobile App Update X.Y: 45% negative  
+        - Volume: 150 mentions / 3 hrs  
+        - Issues: Login Failed, App Crashing  
+
+        **High Churn Risk Pattern Detected**  
+        - Pattern: Repeated Billing Errors - Savings  
+        - 12 unique customer patterns  
+        - Avg. sentiment: -0.8  
         """)
-        st.markdown("</div>", unsafe_allow_html=True) # Close metric-card-content
-        st.button("View All Alerts", type="primary", key="view_alerts_r1c2") # Unique key
+        st.button("View All Alerts", type="primary", key="view_alerts")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with row1_col3: # Predictive Hotspots (static content from design)
+    with col3: # Predictive Hotspots (static content)
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>Predictive Hotspots</span>", unsafe_allow_html=True)
-        hotspot_view = st.radio("View", ["Emerging", "Trending", "Predicted"], horizontal=True, key="hotspot_view_r1c3") # Unique key
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
+        st.markdown("### Predictive Hotspots")
+        hotspot_view = st.radio("View", ["Emerging", "Trending", "Predicted"], horizontal=True, key="hotspot_view")
         st.markdown("""
-        <small>
-        **New Overdraft Policy Confusion**<br>
-        - Medium Impact<br>
-        - 'Confused' Language: +30% WoW<br>
-        - Keywords: "don't understand", "how it works"<br><br>
-        **Intl. Transfer UI Issues**<br>
-        - Low Impact<br>
-        - Task Abandonment: +15% MoM<br>
-        - Negative sentiment: 'Beneficiary Setup'
-        </small>
+        **New Overdraft Policy Confusion**  
+        - Medium Impact  
+        - 'Confused' Language: +30% WoW  
+        - Keywords: "don't understand", "how it works"  
+
+        **Intl. Transfer UI Issues**  
+        - Low Impact  
+        - Task Abandonment: +15% MoM  
+        - Negative sentiment: 'Beneficiary Setup'  
+
+        Monitor emerging confusion on overdrafts and usability for international transfers.
         """)
-        st.markdown("</div>", unsafe_allow_html=True) # Close metric-card-content
-        st.markdown("<small>Monitor emerging confusion and usability issues.</small>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- Prepare data for charts AND LLM context from filtered_df ---
-    total_interactions_for_llm = len(filtered_df) if not filtered_df.empty else 0
-    no_data_df = pd.DataFrame({'Label': ['No Data'], 'Value': [1]}) # For empty charts
+    total_interactions_for_llm = len(filtered_df)
 
     # Sentiment Data
-    if not filtered_df.empty and 'Sentimen' in filtered_df.columns and not filtered_df['Sentimen'].dropna().empty:
+    if not filtered_df.empty and 'Sentimen' in filtered_df.columns:
         sentiment_counts = filtered_df['Sentimen'].value_counts()
         sentiment_data_for_chart = sentiment_counts.reset_index()
         sentiment_data_for_chart.columns = ['Category', 'Value']
@@ -479,182 +424,141 @@ if page == "Dashboard":
         live_sentiment_summary_for_llm = {"Info": "No sentiment data for current filter."}
 
     # Intent Data
-    if not filtered_df.empty and 'Intent' in filtered_df.columns and not filtered_df['Intent'].dropna().empty:
+    if not filtered_df.empty and 'Intent' in filtered_df.columns:
         intent_counts = filtered_df['Intent'].value_counts().nlargest(5) # Top 5 intents
         intent_data_for_chart = intent_counts.reset_index()
         intent_data_for_chart.columns = ['Intent', 'Value']
-        _total_intent_top5 = intent_counts.sum()
-        live_intent_summary_for_llm = {k: f"{(v/_total_intent_top5*100):.1f}% ({v} mentions)" for k, v in intent_counts.items()} if _total_intent_top5 > 0 else {}
+        _total_intent = intent_counts.sum() # Using sum of top 5 for this summary
+        live_intent_summary_for_llm = {k: f"{(v/_total_intent*100):.1f}% ({v} mentions)" for k, v in intent_counts.items()} if _total_intent > 0 else {}
     else:
         intent_data_for_chart = pd.DataFrame({'Intent': ['No Data'], 'Value': [1]})
         live_intent_summary_for_llm = {"Info": "No intent data for current filter."}
 
     # Volume Data
-    _volume_data_points = [0, 1] # Default for y-axis range if no data
-    if not filtered_df.empty and 'Date' in filtered_df.columns and pd.api.types.is_datetime64_any_dtype(filtered_df['Date']) and not filtered_df['Date'].dropna().empty:
+    if not filtered_df.empty and 'Date' in filtered_df.columns:
+        # Group by day for volume trend, regardless of selected period (could be refined)
         volume_over_time = filtered_df.groupby(filtered_df['Date'].dt.date)['Date'].count()
         vol_df_for_chart = volume_over_time.reset_index(name='Volume')
         vol_df_for_chart.columns = ['Day', 'Volume']
-        vol_df_for_chart['Day'] = pd.to_datetime(vol_df_for_chart['Day']) # Ensure 'Day' is datetime for Plotly
         if not vol_df_for_chart.empty:
-            _volume_data_points = vol_df_for_chart['Volume'].tolist()
-            live_volume_summary_for_llm = f"Min daily {vol_df_for_chart['Volume'].min()}, Max daily {vol_df_for_chart['Volume'].max()}, Avg daily {vol_df_for_chart['Volume'].mean():.1f}. Total {vol_df_for_chart['Volume'].sum()} interactions in period."
-        else: # Filtered resulted in empty data for volume trend
-            vol_df_for_chart = pd.DataFrame({'Day': [pd.Timestamp('today').normalize()], 'Volume': [0]})
-            live_volume_summary_for_llm = "No volume data to display for the selected date range after filtering."
+            live_volume_summary_for_llm = f"Volume trend over selected period: Min daily {vol_df_for_chart['Volume'].min()}, Max daily {vol_df_for_chart['Volume'].max()}, Avg daily {vol_df_for_chart['Volume'].mean():.1f}. Total {vol_df_for_chart['Volume'].sum()} interactions."
+            _volume_data_points = vol_df_for_chart['Volume'].tolist() # for y-axis range
+        else:
+            live_volume_summary_for_llm = "No volume data to display for the selected filters."
+            _volume_data_points = [0, 1] # Default for range
+            vol_df_for_chart = pd.DataFrame({'Day': [pd.Timestamp('today').date()], 'Volume': [0]}) # Placeholder for empty chart
     else:
-        vol_df_for_chart = pd.DataFrame({'Day': [pd.Timestamp('today').normalize()], 'Volume': [0]}) # Placeholder for empty chart
-        live_volume_summary_for_llm = "Volume data cannot be trended (Date column missing, not datetime, or no data after filtering)."
+        vol_df_for_chart = pd.DataFrame({'Day': [pd.Timestamp('today').date()], 'Volume': [0]}) # Placeholder
+        live_volume_summary_for_llm = "Volume data cannot be trended (Date column missing or no data)."
+        _volume_data_points = [0, 1]
 
 
     # Customer Voice Snapshot
     st.markdown("## Customer Voice Snapshot")
-    # voice_view = st.radio("View", ["Overview", "Sentiment", "Intent", "Volume"], horizontal=True, key="voice_view_snapshot") # Removed for simplicity
-    row2_col1, row2_col2, row2_col3 = st.columns(3)
+    voice_view = st.radio("View", ["Overview", "Sentiment", "Intent", "Volume"], horizontal=True, key="voice_view")
+    col1, col2, col3 = st.columns(3)
 
-    with row2_col1:
+    with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>Sentiment Distribution</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
+        st.markdown("### Sentiment Distribution")
         if not sentiment_data_for_chart.empty and sentiment_data_for_chart['Category'].iloc[0] != 'No Data':
             fig_sentiment = px.pie(sentiment_data_for_chart, values='Value', names='Category', color='Category',
                                    color_discrete_map={'Positif': '#34c759', 'Netral': '#a2a2a7', 'Negatif': '#ff3b30', 'Unknown': '#cccccc'},
-                                   hole=0.7)
-            fig_sentiment.update_layout(height=230, margin=dict(l=20, r=20, t=5, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='bottom', y=-0.25, xanchor='center', x=0.5, font=dict(size=10)), showlegend=True)
-            fig_sentiment.update_traces(textinfo='percent', textfont_size=10, insidetextorientation='radial') # textinfo='percent+label' can be too crowded
+                                   hole=0.75)
+            fig_sentiment.update_layout(height=230, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5, font=dict(size=10)), showlegend=True)
+            fig_sentiment.update_traces(textinfo='percent+label', textfont_size=10, insidetextorientation='radial')
         else:
-            fig_sentiment = go.Figure(go.Indicator(mode="number", value=0, number={'font':{'size':1}}, title={"text": "No Sentiment Data", "font":{"size":12}})) # Smaller font
-            fig_sentiment.update_layout(height=230, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig_sentiment = go.Figure(go.Indicator(mode="number", value=0, title={"text": "No Sentiment Data"}))
+            fig_sentiment.update_layout(height=230, margin=dict(l=20, r=20, t=40, b=20))
         st.plotly_chart(fig_sentiment, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with row2_col2:
+    with col2:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>Intent Distribution (Top 5)</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
+        st.markdown("### Intent Distribution (Top 5)")
         if not intent_data_for_chart.empty and intent_data_for_chart['Intent'].iloc[0] != 'No Data':
-            intent_color_map = {'Informasi': '#007aff', 'Keluhan': '#ff9500', 'Permohonan': '#5856d6', 'Layanan umum': '#ffcc00', 'Penutupan': '#ff3b30', 'Saran': '#34c759', 'Apresiasi': '#af52de'}
+            # Define a broader color map or use a continuous scale if many intents
+            intent_color_map = {'Informasi': '#007aff', 'Keluhan': '#ff9500', 'Permohonan': '#5856d6', 'Layanan umum': '#ffcc00', 'Penutupan': '#ff3b30'}
             fig_intent = px.bar(intent_data_for_chart, y='Intent', x='Value', orientation='h', color='Intent',
-                                color_discrete_map=intent_color_map,
-                                color_discrete_sequence=px.colors.qualitative.Pastel) # Fallback colors
-            fig_intent.update_layout(height=230, margin=dict(l=0, r=10, t=5, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(size=9)), yaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True, tickfont=dict(size=9), categoryorder='total ascending'), showlegend=False)
-            fig_intent.update_traces(marker_line_width=0, marker_line_color='rgba(0,0,0,0)', width=0.6, texttemplate='%{x}', textposition='outside')
+                                color_discrete_map=intent_color_map) # Add more colors if needed or use px.colors.qualitative.Plotly
+            fig_intent.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True), yaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True, categoryorder='total ascending'), showlegend=False)
+            fig_intent.update_traces(marker_line_width=0, marker_line_color='rgba(0,0,0,0)', width=0.6)
         else:
-            fig_intent = go.Figure(go.Indicator(mode="number", value=0, number={'font':{'size':1}}, title={"text": "No Intent Data", "font":{"size":12}}))
-            fig_intent.update_layout(height=230, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig_intent = go.Figure(go.Indicator(mode="number", value=0, title={"text": "No Intent Data"}))
+            fig_intent.update_layout(height=230, margin=dict(l=20, r=20, t=40, b=20))
         st.plotly_chart(fig_intent, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with row2_col3:
+    with col3:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown(f"<span class='metric-title'>Volume Trend ({time_period_option})</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
+        st.markdown(f"### Volume Trend ({time_period_option})")
         if not vol_df_for_chart.empty and vol_df_for_chart['Volume'].sum() > 0 :
-            fig_volume = px.line(vol_df_for_chart, x='Day', y='Volume', line_shape='spline', markers=False) # Markers can be noisy for many points
-            fig_volume.update_traces(line_color='#007aff', fill='tozeroy', fillcolor='rgba(0,122,255,0.18)', mode='lines')
-            y_min_vol = 0 if not _volume_data_points or min(_volume_data_points) < 0 else min(_volume_data_points) # Ensure y_min is not negative
+            fig_volume = px.line(vol_df_for_chart, x='Day', y='Volume', line_shape='spline', markers=True)
+            fig_volume.update_traces(line_color='#007aff', fill='tozeroy', fillcolor='rgba(0,122,255,0.18)', mode='lines+markers')
+            y_min_vol = 0 if not _volume_data_points else min(_volume_data_points)
             y_max_vol = 10 if not _volume_data_points else max(_volume_data_points)
-            # Add a small buffer to y-axis, ensure min is 0 if all values are 0 or positive.
-            y_range_min = 0 if y_min_vol == 0 and y_max_vol == 0 else max(0, y_min_vol - (y_max_vol - y_min_vol) * 0.1 -1)
-            y_range_max = y_max_vol + (y_max_vol - y_min_vol) * 0.1 + 1
-            if y_range_min == y_range_max: y_range_max +=1 # Ensure range is not zero
+            y_range_vol = [max(0, y_min_vol - (y_max_vol-y_min_vol)*0.1), y_max_vol + (y_max_vol-y_min_vol)*0.1 + 1] # Ensure some padding
 
-
-            fig_volume.update_layout(height=230, margin=dict(l=0, r=10, t=5, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            fig_volume.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                                     xaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True, tickfont=dict(size=9)),
-                                    yaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(size=9), range=[y_range_min, y_range_max]))
+                                    yaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(size=9), range=y_range_vol))
         else:
-            fig_volume = go.Figure(go.Indicator(mode="number", value=0, number={'font':{'size':1}}, title={"text": "No Volume Data", "font":{"size":12}}))
-            fig_volume.update_layout(height=230, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig_volume = go.Figure(go.Indicator(mode="number", value=0, title={"text": "No Volume Data"}))
+            fig_volume.update_layout(height=230, margin=dict(l=20, r=20, t=40, b=20))
         st.plotly_chart(fig_volume, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Summary text below charts
-    summary_text_parts = []
-    if "Info" not in live_sentiment_summary_for_llm and live_sentiment_summary_for_llm:
-        top_sentiment_cat = max(live_sentiment_summary_for_llm, key=lambda k: float(live_sentiment_summary_for_llm[k].split('%')[0]))
-        summary_text_parts.append(f"{top_sentiment_cat} sentiment leads at {live_sentiment_summary_for_llm[top_sentiment_cat].split(' ')[0]}.")
-    if "Info" not in live_intent_summary_for_llm and live_intent_summary_for_llm:
-        top_intent = list(live_intent_summary_for_llm.keys())[0] # Already sorted by nlargest
-        summary_text_parts.append(f"'{top_intent}' is a top intent.")
-    if "Total" in live_volume_summary_for_llm: # Check if volume summary is meaningful
-         summary_text_parts.append(f"Volume shows {total_interactions_for_llm} total interactions for the period.")
-
-    if summary_text_parts:
-        st.markdown(" ".join(summary_text_parts))
-    elif total_interactions_for_llm == 0:
-        st.markdown("No interaction data found for the current filter selection.")
-    else: # Some interactions but no sentiment/intent perhaps
-        st.markdown(f"Displaying data for {total_interactions_for_llm} interactions based on current filters. Some metrics might be unavailable.")
+    if not filtered_df.empty:
+        summary_parts = []
+        if 'Positif' in live_sentiment_summary_for_llm:
+             summary_parts.append(f"Sentimen Positif dominan sebesar {live_sentiment_summary_for_llm['Positif'].split(' ')[0]}.")
+        if live_intent_summary_for_llm and "Info" not in live_intent_summary_for_llm:
+             top_intent = list(live_intent_summary_for_llm.keys())[0]
+             summary_parts.append(f"Niat '{top_intent}' menjadi yang teratas.")
+        if "Total" in live_volume_summary_for_llm:
+            summary_parts.append(f"{live_volume_summary_for_llm.split('.')[1].strip()}.") # Get the total part
+        st.markdown(" ".join(summary_parts) if summary_parts else "Tidak ada data yang cukup untuk ringkasan.")
+    else:
+        st.markdown("Tidak ada data untuk filter yang dipilih.")
 
 
-    # Top Customer Themes (Static content from design)
+    # Top Customer Themes (Static content, can be made dynamic later)
     st.markdown("## Top Customer Themes")
-    # theme_view = st.radio("View", ["Top 10", "Trending", "Emerging", "Declining"], horizontal=True, key="theme_view_snapshot") # Removed for simplicity
-    row3_col1, row3_col2 = st.columns(2)
-    with row3_col1:
+    theme_view = st.radio("View", ["Top 10", "Trending", "Emerging", "Declining"], horizontal=True, key="theme_view")
+    col1, col2 = st.columns(2)
+    with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>Top Positive Themes</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
-        st.markdown("<small>- Fast Customer Service</small>", unsafe_allow_html=True)
-        st.markdown("<small>- Easy Mobile Banking</small>", unsafe_allow_html=True)
-        st.markdown("<small>- Helpful Staff</small>", unsafe_allow_html=True)
-        st.markdown('<small>> <i>"Support resolved my issue in minutes! So efficient."</i></small>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("### Top Positive Themes")
+        st.markdown("- Fast Customer Service")
+        st.markdown("- Easy Mobile Banking")
+        st.markdown("- Helpful Staff")
+        st.markdown('> "Support resolved my issue in minutes! So efficient."')
         st.markdown('</div>', unsafe_allow_html=True)
-    with row3_col2:
+    with col2:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>Top Negative Themes</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
-        st.markdown("<small>- App Technical Issues</small>", unsafe_allow_html=True)
-        st.markdown("<small>- Long Wait Times (Call)</small>", unsafe_allow_html=True)
-        st.markdown("<small>- Fee Transparency</small>", unsafe_allow_html=True)
-        st.markdown('<small>> <i>"The app keeps crashing after the latest update. Very frustrating."</i></small>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("### Top Negative Themes")
+        st.markdown("- App Technical Issues")
+        st.markdown("- Long Wait Times (Call)")
+        st.markdown("- Fee Transparency")
+        st.markdown('> "The app keeps crashing after the latest update. Very frustrating."')
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Opportunity Radar (Static content from design)
+    # Opportunity Radar (Static content, can be made dynamic later)
     st.markdown("## Opportunity Radar")
-    # opportunity_view = st.radio("View", ["High Value", "Quick Wins", "Strategic"], horizontal=True, key="opportunity_view_snapshot") # Removed for simplicity
-    row4_col1, row4_col2, row4_col3 = st.columns(3)
-    with row4_col1:
+    opportunity_view = st.radio("View", ["High Value", "Quick Wins", "Strategic"], horizontal=True, key="opportunity_view")
+    col1, col2, col3 = st.columns(3)
+    with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>🎉 Delightful</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
-        st.markdown("""<small>
-        **Instant Card Activation**<br>
-        - 75 delight mentions this week (Sentiment: +0.95)<br>
-        - Keywords: "amazing", "so easy", "instant"<br>
-        - Action: Amplify in marketing? Benchmark?
-        </small>""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("""**🎉 Delightful: Instant Card Activation**<br>- 75 delight mentions this week (Sentiment: +0.95)<br>- Keywords: "amazing", "so easy", "instant"<br>- Action: Amplify in marketing? Benchmark?""")
         st.markdown('</div>', unsafe_allow_html=True)
-    with row4_col2:
+    with col2:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>💰 Cross-Sell</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
-        st.markdown("""<small>
-        **Mortgage Inquiries +15%**<br>
-        - Mortgage info seeking: +15% WoW<br>
-        - Related: Savings, Financial Planning<br>
-        - Action: Target with relevant mortgage info?
-        </small>""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("""**💰 Cross-Sell: Mortgage Inquiries +15%**<br>- Mortgage info seeking: +15% WoW<br>- Related: Savings, Financial Planning<br>- Action: Target with relevant mortgage info?""")
         st.markdown('</div>', unsafe_allow_html=True)
-    with row4_col3:
+    with col3:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("<span class='metric-title'>⭐ Service Excellence</span>", unsafe_allow_html=True)
-        st.markdown('<div class="metric-card-content">', unsafe_allow_html=True)
-        st.markdown("""<small>
-        **Complex Issues Resolved**<br>
-        - 25 positive mentions for complex issue resolution<br>
-        - Agents: A, B, C praised<br>
-        - Action: Identify best practices? Recognize agents?
-        </small>""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("""**⭐ Service Excellence: Complex Issues**<br>- 25 positive mentions for complex issue resolution<br>- Agents: A, B, C praised<br>- Action: Identify best practices? Recognize agents?""")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # VIRA Chat Assistant
@@ -677,7 +581,6 @@ if page == "Dashboard":
             message_placeholder = st.empty()
             full_response = ""
 
-            # Prepare combined dashboard state for LLM
             dashboard_state_for_llm = {
                 **current_health_data, # contains score, trend, trend_label (from static health score)
                 "time_period_label_llm": time_period_option, # Actual filter selection for LLM
@@ -693,10 +596,11 @@ if page == "Dashboard":
                     full_response += chunk
                     message_placeholder.markdown(full_response + "▌") # Typing effect
                 message_placeholder.markdown(full_response) # Final response
-            except Exception as e: # Catch any other unexpected errors from the generator
+            except Exception as e:
                 full_response = f"Terjadi kesalahan tak terduga saat menghasilkan respons: {str(e)}"
                 message_placeholder.error(full_response)
-                print(f"Chat Error: {e}") # Log to console
+                print(f"Chat Error: {e}")
+
 
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 
