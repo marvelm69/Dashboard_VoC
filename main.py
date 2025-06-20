@@ -741,7 +741,7 @@ def render_filters(master_df):
     
     return time_period, selected_products, selected_channels
 
-def render_health_score_widget(current_health_data):
+def render_health_score_widget(health_data):
     """Render the health score widget"""
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.markdown("### 💚 Customer Health Score")
@@ -756,22 +756,22 @@ def render_health_score_widget(current_health_data):
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.markdown(f'<div class="metric-value">{current_health_data["score"]}%</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-value">{health_data["score"]}%</div>', unsafe_allow_html=True)
     
     with col2:
-        trend_icon = "📈" if current_health_data["trend_positive"] else "📉"
-        trend_class = "metric-trend-positive" if current_health_data["trend_positive"] else "metric-trend-negative"
+        trend_icon = "📈" if health_data["trend_positive"] else "📉"
+        trend_class = "metric-trend-positive" if health_data["trend_positive"] else "metric-trend-negative"
         st.markdown(
-           f'<div class="{trend_class}">{trend_icon} {current_health_data["trend"]} {current_health_data["trend_label"]}</div>',
+           f'<div class="{trend_class}">{trend_icon} {health_data["trend"]} {health_data["trend_label"]}</div>',
            unsafe_allow_html=True
        )
    
 # Health score chart
-fig_health = create_health_score_chart(current_health_data)
+fig_health = create_health_score_chart(health_data)
 st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
    
 # Health score interpretation
-score = current_health_data["score"]
+score = health_data["score"]
 if score >= 80:
 	st.success("🎉 Excellent customer satisfaction! Keep up the great work.")
 elif score >= 70:
@@ -779,7 +779,7 @@ elif score >= 70:
 elif score >= 60:
 	st.warning("⚠️ Moderate satisfaction. Consider addressing key issues.")
 else:
-       	st.error("🚨 Low satisfaction detected. Immediate action recommended.")
+	st.error("🚨 Low satisfaction detected. Immediate action recommended.")
    
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1048,7 +1048,7 @@ def render_vira_chat(dashboard_state):
        st.session_state.messages = [
            {
                "role": "assistant",
-               "content": "🙋♀️ Halo! Saya VIRA, asisten AI Anda untuk analisis Voice of Customer. "
+               "content": "🙋‍♀️ Halo! Saya VIRA, asisten AI Anda untuk analisis Voice of Customer. "
                          "Saya dapat membantu menganalisis data dasbor, memberikan insights, dan menjawab pertanyaan "
                          "terkait performa customer experience. Ada yang bisa saya bantu hari ini?"
            }
