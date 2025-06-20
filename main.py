@@ -3,9 +3,196 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-import random
-import uuid
-from openai import OpenAI # Ensure openai library is installed: pip install openai
+# import random # No longer needed for core data
+# import uuid # No longer needed for core data
+from openai import OpenAI
+
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+from google.auth.exceptions import RefreshError
+
+# ------------------ GOOGLE SHEETS API SETUP -----------------------
+SERVICE_ACCOUNT_FILE = 'key.json' # Make sure this file exists or update path
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly'] # Readonly is safer if you only read
+SPREADSHEET_ID = '1V5cRgnnN5GTFsD9bR05hLzsKRWkhdEy3LhuTvSnUyIM' # Your Spreadsheet ID
+
+@st.cache_data(ttl=600) # Cache data for 10 minutes
+def get_google_sheets_service():
+    try:
+        creds = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        service = build('sheets', 'v4', credentials=creds)
+        return service
+    except FileNotFoundError:
+        st.error(f"Service account key file '{SERVICE_ACCOUNT_FILE}' not found. Please ensure it's in the correct path.")
+        return None
+    except RefreshError as e:
+        st.error(f"Error with Google Sheets credentials (RefreshError): {e}. Ensure the service account is correctly set up and has access to the sheet.")
+        return None
+    except Exception as e:
+        st.error(f"An unexpected error occurred during Google Sheets authentication: {e}")
+        return None
+
+@st.cache_data(ttl=600)
+def fetch_sheet_data(service, sheet_name, range_name):
+    if service is None:
+        return []
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"{sheet_name}!{range_name}"
+        ).execute()
+        values = result.get('values', [])
+        return values
+    except Exception as e:
+        st.warning(f"Could not fetch data from sheet '{sheet_name}', range '{range_name}'. Error: {e}")
+        return []
+
+# --- Data Processing Functions from Google Sheets ---
+@st.cache_data(ttl=600)
+def process_health_score_data_from_sheet(raw_data):
+    health_scores = {}
+    if not raw_data or len(raw_data) < 2: # Header + at least one data row
+        st.warning("HealthScores sheet data is empty or malformed.")
+        return generate_fallback_health_score_data() # Fallback to some default
+
+    header = raw_data[0]
+    try:
+        # Expected header: TimePeriodKey, Labels, Values, Score, Trend, TrendPositive, TrendLabel
+        key_idx = header.index('TimePeriodKey')
+        labels_idx = header.index('Labels (comma-separated)')
+        values_idx = header.index('Values (comma-separated)')
+        score_idx = header.index('Score')
+        trend_idx = header.index('Trend')
+        trend_pos_idx = header.index('TrendPositive (TRUE/FALSE)')
+        trend_label_idx = header.index('TrendLabel')
+    except ValueError:
+        st.error("HealthScores sheet has incorrect headers. Expected: TimePeriodKey, Labels (comma-separated), Values (comma-separated), Score, Trend, TrendPositive (TRUE/FALSE), TrendLabel")
+        return generate_fallback_health_score_data()
+
+    for row in raw_data[1:]:
+        if len(row) < max(key_idx, labels_idx, values_idx, score_idx, trend_idx, trend_pos_idx, trend_label_idx) + 1:
+            continue # Skip malformed rows
+
+        time_period_key = row[key_idx]
+        try:
+            labels = [label.strip() for label in row[labels_idx].split(',')]
+            values = [int(val.strip()) for val in row[values_idx].split(',')]
+            score = int(row[score_idx])
+            trend_positive = row[trend_pos_idx].strip().upper() == 'TRUE'
+
+            health_scores[time_period_key] = {
+                "labels": labels,
+                "values": values,
+                "score": score,
+                "trend": row[trend_idx],
+                "trend_positive": trend_positive,
+                "trend_label": row[trend_label_idx],
+            }
+        except ValueError as e:
+            st.warning(f"Skipping row in HealthScores due to data conversion error for '{time_period_key}': {e}. Row: {row}")
+            continue
+        except IndexError:
+            st.warning(f"Skipping row in HealthScores due to missing columns for '{time_period_key}'. Row: {row}")
+            continue
+
+    if not health_scores: # If all rows failed or sheet was empty after header
+        return generate_fallback_health_score_data()
+    return health_scores
+
+@st.cache_data(ttl=600)
+def process_categorical_data_from_sheet(raw_data, category_col_name="Category", value_col_name="Value"):
+    if not raw_data or len(raw_data) < 2:
+        return pd.DataFrame({category_col_name: [], value_col_name: []}) # Empty DataFrame with correct columns
+
+    header = raw_data[0]
+    try:
+        cat_idx = header.index(category_col_name)
+        val_idx = header.index(value_col_name)
+    except ValueError:
+        st.error(f"Sheet for categorical data has incorrect headers. Expected: '{category_col_name}', '{value_col_name}'")
+        return pd.DataFrame({category_col_name: [], value_col_name: []})
+
+    data_dict = {category_col_name: [], value_col_name: []}
+    for row in raw_data[1:]:
+        if len(row) > max(cat_idx, val_idx):
+            try:
+                data_dict[category_col_name].append(row[cat_idx])
+                data_dict[value_col_name].append(float(row[val_idx])) # Ensure value is float
+            except (ValueError, IndexError) as e:
+                st.warning(f"Skipping row in categorical data due to error: {e}. Row: {row}")
+                continue
+    return pd.DataFrame(data_dict)
+
+@st.cache_data(ttl=600)
+def process_volume_data_from_sheet(raw_data):
+    if not raw_data or len(raw_data) < 2:
+        return pd.DataFrame({'Day': [], 'Volume': []})
+
+    header = raw_data[0]
+    try:
+        day_idx = header.index('Day')
+        vol_idx = header.index('Volume')
+    except ValueError:
+        st.error("VolumeData sheet has incorrect headers. Expected: 'Day', 'Volume'")
+        return pd.DataFrame({'Day': [], 'Volume': []})
+
+    data_dict = {'Day': [], 'Volume': []}
+    for row in raw_data[1:]:
+        if len(row) > max(day_idx, vol_idx):
+            try:
+                data_dict['Day'].append(int(row[day_idx]))
+                data_dict['Volume'].append(float(row[vol_idx]))
+            except (ValueError, IndexError) as e:
+                st.warning(f"Skipping row in VolumeData due to error: {e}. Row: {row}")
+                continue
+    return pd.DataFrame(data_dict)
+
+@st.cache_data(ttl=600)
+def process_textual_list_from_sheet(raw_data, num_cols=1):
+    """ Processes sheets where each row is an item, potentially with multiple details. """
+    if not raw_data or len(raw_data) < 2: # Header + data
+        return []
+
+    items = []
+    for row in raw_data[1:]: # Skip header
+        if row: # If row is not empty
+            # Take up to num_cols, fill with empty strings if fewer
+            items.append([row[i] if i < len(row) else "" for i in range(num_cols)])
+    return items
+
+# Fallback data if sheet fetching fails
+def generate_fallback_health_score_data():
+    st.warning("Using fallback data for Health Scores.")
+    return {
+        "month": { # Default to month if specific key not found later
+            "labels": ["Week 1", "Week 2", "Week 3", "Week 4"],
+            "values": [70, 72, 71, 73],
+            "score": 73,
+            "trend": "+0.5%",
+            "trend_positive": True,
+            "trend_label": "vs. last month (fallback)",
+        }
+    }
+def generate_fallback_categorical_data(category_name="Category", value_name="Value"):
+    st.warning(f"Using fallback data for {category_name}.")
+    return pd.DataFrame({category_name: ["Default A", "Default B"], value_name: [60, 40]})
+
+def generate_fallback_volume_data():
+    st.warning("Using fallback data for Volume Trend.")
+    return pd.DataFrame({'Day': list(range(1, 11)), 'Volume': [100 + i*5 for i in range(10)]})
+
+def generate_fallback_textual_list(item_name="Item", num_details=1):
+    st.warning(f"Using fallback data for {item_name}.")
+    if num_details == 1:
+        return [["Default " + item_name + " 1"], ["Default " + item_name + " 2"]]
+    else:
+        return [["Default " + item_name + " Title 1"] + [f"Detail {i+1}" for i in range(num_details-1)],
+                ["Default " + item_name + " Title 2"] + [f"Detail {i+1}" for i in range(num_details-1)]]
+
+
+# Initialize Google Sheets Service
+sheets_service = get_google_sheets_service()
 
 # Set page configuration
 st.set_page_config(
@@ -14,7 +201,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for enhanced styling
+# Custom CSS (same as your original)
 st.markdown("""
 <style>
     .stApp {
@@ -43,6 +230,7 @@ st.markdown("""
         border-radius: 10px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         margin-bottom: 20px;
+        min-height: 250px; /* Ensure cards have a minimum height */
     }
     .metric-title {
         font-size: 18px;
@@ -88,128 +276,92 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- NVIDIA API Client Initialization ---
-# WARNING: Hardcoding API keys is a security risk. Use secrets management in production.
-client = OpenAI(
-  base_url = "https://integrate.api.nvidia.com/v1",
-  api_key = "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"
-)
+SYSTEM_PROMPT_VIRA = """
+Anda adalah VIRA, seorang konsultan virtual untuk Bank BCA.
+Tugas utama Anda adalah menganalisis data dasbor yang disediakan dan memberikan wawasan, ringkasan, serta saran yang relevan.
+Fokuslah pada metrik seperti skor kesehatan, tren, sentimen pelanggan, niat panggilan, dan volume panggilan.
+Selalu dasarkan jawaban Anda pada data yang diberikan dalam `dashboard_state`.
+Gunakan bahasa Indonesia yang sopan dan mudah dimengerti.
+Jika ada pertanyaan yang tidak dapat dijawab dari data dasbor, sampaikan dengan sopan bahwa informasi tersebut tidak tersedia dalam tampilan dasbor saat ini atau minta pengguna untuk memberikan detail lebih lanjut.
+Berikan analisis yang ringkas namun mendalam.
+Jika ada pertanyaan yang diluar konteks analisis anda, sampaikan bahwa itu diluar kapabilitas anda untuk menjelaskannya
 
-def generate_llm_response(user_prompt, dashboard_state):
-    """
-    Generates a response from the LLM based on the user prompt and dashboard state.
-    Streams the response.
-    """
-    context = f"""
-You are VIRA, an AI assistant for a Voice of Customer (VOC) Dashboard.
-Your role is to help users understand the dashboard data and insights.
-Be concise and helpful.
-
-Here is a summary of the current dashboard view based on selected filters:
-- Selected Time Period for Health Score: {dashboard_state.get('time_period_label', 'N/A')}
-- Customer Health Score: {dashboard_state.get('score', 'N/A')}% (Trend: {dashboard_state.get('trend', 'N/A')} {dashboard_state.get('trend_label', 'N/A')})
-
-Live Chart Summaries (approximations based on current filters):
-- Sentiment Distribution: Positive: {dashboard_state.get('sentiment_summary', {}).get('Positive', 'N/A')}, Neutral: {dashboard_state.get('sentiment_summary', {}).get('Neutral', 'N/A')}, Negative: {dashboard_state.get('sentiment_summary', {}).get('Negative', 'N/A')}.
-- Intent Distribution: {'; '.join([f"{k}: {v}" for k, v in dashboard_state.get('intent_summary', {}).items()]) if dashboard_state.get('intent_summary') else 'N/A'}.
-- Volume Trend: {dashboard_state.get('volume_summary', 'N/A')}.
-
-General Dashboard Information (these are examples, specific alerts/hotspots may vary and should be checked on their respective cards):
-- Critical Alerts: May highlight issues like "Sudden Spike in Negative Sentiment" or "High Churn Risk".
-- Predictive Hotspots: Could point to "Policy Confusion" or "UI Issues".
-- Top Customer Themes (Positive): Examples include "Fast Customer Service", "Easy Mobile Banking".
-- Top Customer Themes (Negative): Examples include "App Technical Issues", "Long Wait Times".
-- Opportunity Radar: Identifies areas like "Delightful Features", "Cross-Sell Opportunities", "Service Excellence".
-
-Based on this context and your general knowledge, please answer the user's question.
-If the question is about specific details not covered in this summary, you can suggest the user check the relevant dashboard section.
-User question: "{user_prompt}"
+PENTING:
+Sebelum memberikan jawaban akhir kepada pengguna, Anda BOLEH melakukan analisis internal atau "berpikir".
+Jika Anda melakukan proses berpikir internal, *JANGAN* tuliskan pemikiran tersebut.
+Jika tidak ada proses berpikir khusus atau analisis internal yang perlu dituliskan, langsung berikan jawaban
 """
+
+# IMPORTANT: Use Streamlit secrets for API keys in production!
+# For local development, you can set it as an environment variable
+# or temporarily hardcode it (NOT RECOMMENDED FOR PRODUCTION).
+NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", "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") # Replace with your actual key if not using secrets
+
+if not NVIDIA_API_KEY or NVIDIA_API_KEY == "YOUR_NVIDIA_API_KEY_HERE":
+    st.error("NVIDIA API Key not configured. Please set it in Streamlit secrets (key: NVIDIA_API_KEY) or environment variables.")
+    client = None
+else:
+    client = OpenAI(
+      base_url = "https://integrate.api.nvidia.com/v1",
+      api_key = NVIDIA_API_KEY
+    )
+
+def generate_llm_response(user_prompt: str, dashboard_state: dict, system_prompt: str):
+    if client is None:
+        yield "Layanan AI tidak dikonfigurasi. Silakan periksa API Key."
+        return
+
+    dashboard_summary_for_llm = f"""
+Ringkasan tampilan dasbor saat ini berdasarkan filter yang dipilih:
+- Periode Waktu Terpilih untuk Skor Kesehatan: {dashboard_state.get('time_period_label', 'N/A')}
+- Skor Kesehatan Pelanggan: {dashboard_state.get('score', 'N/A')}% (Tren: {dashboard_state.get('trend', 'N/A')} - {dashboard_state.get('trend_label', 'N/A')})
+
+Ringkasan Grafik Langsung (perkiraan berdasarkan filter saat ini):
+- Distribusi Sentimen: Positif: {dashboard_state.get('sentiment_summary', {}).get('Positive', 'N/A')}, Netral: {dashboard_state.get('sentiment_summary', {}).get('Neutral', 'N/A')}, Negatif: {dashboard_state.get('sentiment_summary', {}).get('Negative', 'N/A')}.
+- Distribusi Niat: {'; '.join([f"{k}: {v}" for k, v in dashboard_state.get('intent_summary', {}).items()]) if dashboard_state.get('intent_summary') else 'N/A'}.
+- Tren Volume: {dashboard_state.get('volume_summary', 'N/A')}.
+
+Informasi Dasbor Umum (ini adalah contoh, peringatan/hotspot spesifik dapat bervariasi dan harus diperiksa pada kartunya masing-masing):
+- Peringatan Kritis: Dapat menyoroti masalah seperti "Lonjakan Mendadak dalam Sentimen Negatif" atau "Risiko Churn Tinggi".
+- Hotspot Prediktif: Bisa menunjuk ke "Kebingungan Kebijakan" atau "Masalah UI".
+- Tema Pelanggan Teratas (Positif): Contohnya "Layanan Pelanggan Cepat", "Mobile Banking Mudah".
+- Tema Pelanggan Teratas (Negatif): Contohnya "Masalah Teknis Aplikasi", "Waktu Tunggu Lama".
+- Radar Peluang: Mengidentifikasi area seperti "Fitur yang Menyenangkan", "Peluang Cross-Sell", "Keunggulan Layanan".
+"""
+    constructed_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"{dashboard_summary_for_llm}\n\nPertanyaan Pengguna: \"{user_prompt}\""}
+    ]
     try:
         completion = client.chat.completions.create(
-            model="deepseek-ai/deepseek-r1-distill-qwen-32b",
-            messages=[{"role": "user", "content": context}],
-            temperature=0.5, # Adjusted slightly for more factual responses
-            top_p=0.7,
-            max_tokens=1024, # Sufficient for chat responses
+            model="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+            messages=constructed_messages,
+            temperature=1.00,
+            top_p=0.01,
+            max_tokens=1024,
             stream=True
         )
         for chunk in completion:
-            if chunk.choices[0].delta.content is not None:
+            if chunk.choices[0].delta and chunk.choices[0].delta.content is not None:
                 yield chunk.choices[0].delta.content
     except Exception as e:
-        st.error(f"LLM API Error: {e}") # Show error in Streamlit UI as well
-        yield f"Sorry, I encountered an error while trying to connect to the AI service: {str(e)}. Please check the console or try again later."
+        error_message = f"Maaf, terjadi kesalahan saat menghubungi layanan AI: {str(e)}. Silakan coba lagi nanti atau periksa konsol."
+        print(f"LLM API Error: {e}")
+        yield error_message
 
-# Generate health score data
-def generate_health_score_data():
-    return {
-        "today": {
-            "labels": ["9 AM", "11 AM", "1 PM", "3 PM", "5 PM", "7 PM", "9 PM"],
-            "values": [78, 76, 80, 79, 81, 83, 84],
-            "score": 84,
-            "trend": "+2.5%",
-            "trend_positive": True,
-            "trend_label": "vs. yesterday",
-        },
-        "week": {
-            "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            "values": [79, 78, 80, 81, 83, 84, 85],
-            "score": 85,
-            "trend": "+1.8%",
-            "trend_positive": True,
-            "trend_label": "vs. last week",
-        },
-        "month": {
-            "labels": ["Week 1", "Week 2", "Week 3", "Week 4"],
-            "values": [79, 80, 81, 82],
-            "score": 82,
-            "trend": "+1.5%",
-            "trend_positive": True,
-            "trend_label": "vs. last month",
-        },
-        "quarter": {
-            "labels": ["Jan", "Feb", "Mar"],
-            "values": [76, 79, 83],
-            "score": 83,
-            "trend": "+3.2%",
-            "trend_positive": True,
-            "trend_label": "vs. last quarter",
-        },
-        "year": {
-            "labels": ["Q1", "Q2", "Q3", "Q4"],
-            "values": [75, 77, 80, 84],
-            "score": 84,
-            "trend": "+4.1%",
-            "trend_positive": True,
-            "trend_label": "vs. last year",
-        },
-        "all": {
-            "labels": ["2019", "2020", "2021", "2022", "2023", "2024"],
-            "values": [73, 71, 75, 78, 80, 83],
-            "score": 83,
-            "trend": "+10.4%",
-            "trend_positive": True,
-            "trend_label": "over 5 years",
-        },
-    }
 
-# Sidebar
+# Sidebar (same as your original)
 with st.sidebar:
     st.title("VOCAL")
     st.markdown("---")
-
     st.header("Menu")
     page = st.selectbox("Navigate", ["Dashboard", "Analytics", "Feedback", "Alerts", "Reports"], key="menu_nav")
-
     st.header("Customer Insights")
     st.selectbox("Insights", ["Sentiment Analysis", "Journey Mapping", "Satisfaction Scores", "Theme Analysis"], key="insights_nav")
-
     st.header("Operations")
     st.selectbox("Operations", ["Real-time Monitoring", "Predictive Analytics", "Performance Metrics", "Action Items"], key="ops_nav")
-
     st.header("Configuration")
     st.selectbox("Config", ["Settings", "User Management", "Security", "Help & Support"], key="config_nav")
-
     st.markdown("---")
     st.markdown("**Sebastian**")
     st.markdown("CX Manager")
@@ -219,10 +371,10 @@ if page == "Dashboard":
     st.title("Customer Experience Health")
     st.markdown("Real-time Insights & Performance Overview")
 
-    # Filters
+    # Filters (same as your original, currently they don't re-fetch data, just for display/LLM context)
     col1, col2, col3 = st.columns(3)
     with col1:
-        time_period = st.selectbox(
+        time_period_display = st.selectbox(
             "TIME",
             ["All Periods", "Today", "This Week", "This Month", "This Quarter", "This Year"],
             index=3, # Default to "This Month"
@@ -243,240 +395,267 @@ if page == "Dashboard":
             key="channel_filter"
         )
 
-    # Filter logic
+    # --- FETCH DATA FROM GOOGLE SHEETS ---
+    if sheets_service:
+        raw_health_data = fetch_sheet_data(sheets_service, "HealthScores", "A:G") # A1:G for all rows
+        health_score_data_source = process_health_score_data_from_sheet(raw_health_data)
+
+        raw_sentiment_data = fetch_sheet_data(sheets_service, "SentimentData", "A:B")
+        sentiment_data_for_chart = process_categorical_data_from_sheet(raw_sentiment_data, "Category", "Value")
+
+        raw_intent_data = fetch_sheet_data(sheets_service, "IntentData", "A:B")
+        intent_data_for_chart = process_categorical_data_from_sheet(raw_intent_data, "Intent", "Value")
+
+        raw_volume_data = fetch_sheet_data(sheets_service, "VolumeData", "A:B")
+        vol_df_for_chart = process_volume_data_from_sheet(raw_volume_data)
+
+        raw_alerts_data = fetch_sheet_data(sheets_service, "CriticalAlertsData", "A:D") # Assuming up to 4 columns
+        critical_alerts_list = process_textual_list_from_sheet(raw_alerts_data, num_cols=4)
+
+        raw_hotspots_data = fetch_sheet_data(sheets_service, "PredictiveHotspotsData", "A:D") # Assuming up to 4 columns
+        predictive_hotspots_list = process_textual_list_from_sheet(raw_hotspots_data, num_cols=4)
+
+        raw_positive_themes = fetch_sheet_data(sheets_service, "PositiveThemesData", "A:B") # Theme, Quote
+        positive_themes_list = process_textual_list_from_sheet(raw_positive_themes, num_cols=2)
+
+        raw_negative_themes = fetch_sheet_data(sheets_service, "NegativeThemesData", "A:B") # Theme, Quote
+        negative_themes_list = process_textual_list_from_sheet(raw_negative_themes, num_cols=2)
+
+        raw_opportunities = fetch_sheet_data(sheets_service, "OpportunityRadarData", "A:E") # Category, Title, D1, D2, Action
+        opportunity_radar_list = process_textual_list_from_sheet(raw_opportunities, num_cols=5)
+
+    else: # Fallback if sheets_service is None
+        st.error("Google Sheets service could not be initialized. Displaying fallback data.")
+        health_score_data_source = generate_fallback_health_score_data()
+        sentiment_data_for_chart = generate_fallback_categorical_data("Category", "Value")
+        intent_data_for_chart = generate_fallback_categorical_data("Intent", "Value")
+        vol_df_for_chart = generate_fallback_volume_data()
+        critical_alerts_list = generate_fallback_textual_list("Critical Alert", num_details=3)
+        predictive_hotspots_list = generate_fallback_textual_list("Predictive Hotspot", num_details=3)
+        positive_themes_list = generate_fallback_textual_list("Positive Theme", num_details=2)
+        negative_themes_list = generate_fallback_textual_list("Negative Theme", num_details=2)
+        opportunity_radar_list = generate_fallback_textual_list("Opportunity", num_details=5)
+
+
+    # Filter logic for health score
     time_period_map = {
-        "All Periods": "all",
-        "Today": "today",
-        "This Week": "week",
-        "This Month": "month",
-        "This Quarter": "quarter",
-        "This Year": "year"
+        "All Periods": "all", "Today": "today", "This Week": "week",
+        "This Month": "month", "This Quarter": "quarter", "This Year": "year"
     }
-    selected_time_key = time_period_map.get(time_period, "month") # e.g. "month"
-    product_filter_active = ["all"] if "All Products" in products else [p.lower().replace(" ", "_") for p in products]
-    channel_filter_active = ["all"] if "All Channels" in channels else [c.lower().replace(" ", "_") for c in channels]
+    selected_time_key = time_period_map.get(time_period_display, "month")
 
-    # Multipliers for filtering (example effect)
-    product_multiplier = 1.0 if "all" in product_filter_active else 0.8
-    channel_multiplier = 1.0 if "all" in channel_filter_active else 0.9
-    if "social_media" in channel_filter_active and "all" not in channel_filter_active:
-        channel_multiplier = 0.6
+    # Get current health data, fall back to 'month' or first available if selected key not present
+    current_health_data = health_score_data_source.get(selected_time_key)
+    if not current_health_data:
+        current_health_data = health_score_data_source.get("month", health_score_data_source.get(next(iter(health_score_data_source)))) # Fallback chain
+        st.warning(f"Data for '{time_period_display}' not found in HealthScores sheet. Displaying fallback or 'month' data.")
 
-    # Health score data
-    health_score_data_source = generate_health_score_data()
-    current_health_data = health_score_data_source.get(selected_time_key, health_score_data_source["month"]).copy() # Use .copy() to avoid modifying the source
-    current_health_data['time_period_label'] = time_period # Add display name of time period, e.g. "This Month"
+    current_health_data['time_period_label'] = time_period_display
 
 
-    # Dashboard widgets
+    # --- Dashboard widgets ---
     st.markdown("## Dashboard Widgets")
-    col1, col2, col3 = st.columns(3)
+    col1_dash, col2_dash, col3_dash = st.columns(3)
 
-    with col1:
+    with col1_dash:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Customer Health Score")
         health_view = st.radio("View", ["Real-time", "Daily Trend", "Comparison"], horizontal=True, key="health_view")
 
         score_col1, score_col2 = st.columns([1, 2])
         with score_col1:
-            st.markdown(f'<div class="metric-value">{current_health_data["score"]}%</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-value">{current_health_data.get("score", "N/A")}%</div>', unsafe_allow_html=True)
         with score_col2:
-            trend_icon = "↑" if current_health_data["trend_positive"] else "↓"
-            trend_class = "metric-trend-positive" if current_health_data["trend_positive"] else "metric-trend-negative"
-            st.markdown(f'<div class="{trend_class}">{trend_icon} {current_health_data["trend"]} {current_health_data["trend_label"]}</div>', unsafe_allow_html=True)
+            trend_positive = current_health_data.get("trend_positive", False)
+            trend_icon = "↑" if trend_positive else "↓"
+            trend_class = "metric-trend-positive" if trend_positive else "metric-trend-negative"
+            st.markdown(f'<div class="{trend_class}">{trend_icon} {current_health_data.get("trend", "N/A")} {current_health_data.get("trend_label", "")}</div>', unsafe_allow_html=True)
 
         fig_health = go.Figure()
         fig_health.add_trace(go.Scatter(
-            x=current_health_data["labels"],
-            y=current_health_data["values"],
-            mode='lines',
-            fill='tozeroy',
-            fillcolor='rgba(52,199,89,0.18)',
-            line=dict(color='#34c759', width=2),
-            name='Health Score'
+            x=current_health_data.get("labels", []),
+            y=current_health_data.get("values", []),
+            mode='lines', fill='tozeroy', fillcolor='rgba(52,199,89,0.18)',
+            line=dict(color='#34c759', width=2), name='Health Score'
         ))
+        min_val = min(current_health_data.get("values", [0])) if current_health_data.get("values") else 0
+        max_val = max(current_health_data.get("values", [100])) if current_health_data.get("values") else 100
         fig_health.update_layout(
-            height=150,
-            margin=dict(l=0, r=0, t=10, b=0),
-            paper_bgcolor='rgba(0,0,0,0)',
+            height=150, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             xaxis=dict(showgrid=False, showline=False, showticklabels=True, tickfont=dict(color='#4a4a4f', size=9)),
-            yaxis=dict(showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(color='#4a4a4f', size=9), range=[min(current_health_data["values"]) - 2, max(current_health_data["values"]) + 2])
+            yaxis=dict(showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(color='#4a4a4f', size=9), range=[min_val - 2, max_val + 2])
         )
         st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("Overall customer satisfaction is strong, showing a positive trend this month.")
+        st.markdown("Overall customer satisfaction based on selected period.") # Generic description
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with col2:
+    with col2_dash:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Critical Alerts")
-        alert_view = st.radio("View", ["Critical", "High", "Medium", "All"], horizontal=True, key="alert_view")
-        st.markdown("""
-        **Sudden Spike in Negative Sentiment**  
-        - Mobile App Update X.Y: 45% negative  
-        - Volume: 150 mentions / 3 hrs  
-        - Issues: Login Failed, App Crashing  
-
-        **High Churn Risk Pattern Detected**  
-        - Pattern: Repeated Billing Errors - Savings  
-        - 12 unique customer patterns  
-        - Avg. sentiment: -0.8  
-        """)
+        alert_view = st.radio("View", ["Critical", "High", "Medium", "All"], horizontal=True, key="alert_view") # View selection not implemented for brevity
+        if critical_alerts_list:
+            for alert in critical_alerts_list:
+                st.markdown(f"**{alert[0]}**") # Title
+                for detail in alert[1:]:
+                    if detail: st.markdown(f"- {detail}")
+                st.markdown("---")
+        else:
+            st.info("No critical alerts data found or loaded.")
         st.button("View All Alerts", type="primary", key="view_alerts")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with col3:
+    with col3_dash:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Predictive Hotspots")
-        hotspot_view = st.radio("View", ["Emerging", "Trending", "Predicted"], horizontal=True, key="hotspot_view")
-        st.markdown("""
-        **New Overdraft Policy Confusion**  
-        - Medium Impact  
-        - 'Confused' Language: +30% WoW  
-        - Keywords: "don't understand", "how it works"  
-
-        **Intl. Transfer UI Issues**  
-        - Low Impact  
-        - Task Abandonment: +15% MoM  
-        - Negative sentiment: 'Beneficiary Setup'  
-
-        Monitor emerging confusion on overdrafts and usability for international transfers.
-        """)
+        hotspot_view = st.radio("View", ["Emerging", "Trending", "Predicted"], horizontal=True, key="hotspot_view") # View selection not implemented
+        if predictive_hotspots_list:
+            for hotspot in predictive_hotspots_list:
+                st.markdown(f"**{hotspot[0]}**") # Title
+                for detail in hotspot[1:]:
+                    if detail: st.markdown(f"- {detail}")
+                st.markdown("---")
+        else:
+            st.info("No predictive hotspots data found or loaded.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- Prepare data for charts AND LLM context ---
-    # Sentiment Data
-    _temp_sentiment_values = {
-        'Positive': (60 + random.random() * 10) * product_multiplier,
-        'Neutral': (20 + random.random() * 5) * product_multiplier,
-        'Negative': (10 + random.random() * 5) * product_multiplier
-    }
-    _total_sentiment = sum(_temp_sentiment_values.values()) if sum(_temp_sentiment_values.values()) > 0 else 1 # Avoid division by zero
-    live_sentiment_summary_for_llm = {k: f"{(v/_total_sentiment*100):.1f}%" for k, v in _temp_sentiment_values.items()}
-    sentiment_data_for_chart = pd.DataFrame({
-        'Category': list(_temp_sentiment_values.keys()),
-        'Value': list(_temp_sentiment_values.values())
-    })
+    # --- Prepare data for charts AND LLM context (using fetched data) ---
+    if not sentiment_data_for_chart.empty:
+        _total_sentiment = sentiment_data_for_chart['Value'].sum() if sentiment_data_for_chart['Value'].sum() > 0 else 1
+        live_sentiment_summary_for_llm = {
+            row['Category']: f"{(row['Value']/_total_sentiment*100):.1f}%"
+            for index, row in sentiment_data_for_chart.iterrows()
+        }
+    else:
+        live_sentiment_summary_for_llm = {"Positive": "N/A", "Neutral": "N/A", "Negative": "N/A"}
 
-    # Intent Data
-    _temp_intent_values = {
-        'Info Seeking': (35 + random.random() * 10) * product_multiplier * channel_multiplier,
-        'Complaint': (20 + random.random() * 5) * product_multiplier * channel_multiplier,
-        'Service Request': (20 + random.random() * 5) * product_multiplier * channel_multiplier,
-        'Feedback': (10 + random.random() * 5) * product_multiplier * channel_multiplier
-    }
-    _total_intent = sum(_temp_intent_values.values()) if sum(_temp_intent_values.values()) > 0 else 1 # Avoid division by zero
-    live_intent_summary_for_llm = {k: f"{(v/_total_intent*100):.1f}% (approx {v:.0f} mentions)" for k, v in _temp_intent_values.items()}
-    intent_data_for_chart = pd.DataFrame({
-        'Intent': list(_temp_intent_values.keys()),
-        'Value': list(_temp_intent_values.values())
-    })
+    if not intent_data_for_chart.empty:
+        _total_intent = intent_data_for_chart['Value'].sum() if intent_data_for_chart['Value'].sum() > 0 else 1
+        live_intent_summary_for_llm = {
+            row['Intent']: f"{(row['Value']/_total_intent*100):.1f}% (approx {row['Value']:.0f} mentions)"
+            for index, row in intent_data_for_chart.iterrows()
+        }
+    else:
+        live_intent_summary_for_llm = {"Info Seeking": "N/A"}
 
-    # Volume Data
-    _volume_data_points = [(400 + random.random() * 300 + i * 5) * channel_multiplier for i in range(30)]
-    live_volume_summary_for_llm = f"Volume trend over 30 days: current day approx {int(_volume_data_points[-1])} interactions, min approx {int(min(_volume_data_points))}, max approx {int(max(_volume_data_points))}"
-    vol_df_for_chart = pd.DataFrame({'Day': list(range(1, 31)), 'Volume': _volume_data_points})
+    if not vol_df_for_chart.empty:
+        _volume_data_points = vol_df_for_chart['Volume'].tolist()
+        live_volume_summary_for_llm = f"Volume trend over {len(_volume_data_points)} days: current day approx {int(_volume_data_points[-1]) if _volume_data_points else 'N/A'} interactions, min approx {int(min(_volume_data_points)) if _volume_data_points else 'N/A'}, max approx {int(max(_volume_data_points)) if _volume_data_points else 'N/A'}"
+    else:
+        _volume_data_points = []
+        live_volume_summary_for_llm = "Volume data N/A"
 
 
     # Customer Voice Snapshot
     st.markdown("## Customer Voice Snapshot")
     voice_view = st.radio("View", ["Overview", "Sentiment", "Intent", "Volume"], horizontal=True, key="voice_view")
-    col1, col2, col3 = st.columns(3)
+    col1_snap, col2_snap, col3_snap = st.columns(3)
 
-    with col1:
+    with col1_snap:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Sentiment Distribution")
-        fig_sentiment = px.pie(sentiment_data_for_chart, values='Value', names='Category', color='Category', color_discrete_map={'Positive': '#34c759', 'Neutral': '#a2a2a7', 'Negative': '#ff3b30'}, hole=0.75)
-        fig_sentiment.update_layout(height=230, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5, font=dict(size=10)), showlegend=True)
-        fig_sentiment.update_traces(textinfo='percent', textfont_size=10)
-        st.plotly_chart(fig_sentiment, use_container_width=True, config={'displayModeBar': False})
+        if not sentiment_data_for_chart.empty:
+            fig_sentiment = px.pie(sentiment_data_for_chart, values='Value', names='Category', color='Category',
+                                   color_discrete_map={'Positive': '#34c759', 'Neutral': '#a2a2a7', 'Negative': '#ff3b30'}, hole=0.75)
+            fig_sentiment.update_layout(height=230, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)',
+                                        plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5, font=dict(size=10)), showlegend=True)
+            fig_sentiment.update_traces(textinfo='percent', textfont_size=10)
+            st.plotly_chart(fig_sentiment, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Sentiment data not available.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with col2:
+    with col2_snap:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Intent Distribution")
-        fig_intent = px.bar(intent_data_for_chart, y='Intent', x='Value', orientation='h', color='Intent', color_discrete_map={'Info Seeking': '#007aff', 'Complaint': '#ff9500', 'Service Request': '#5856d6', 'Feedback': '#ffcc00'})
-        fig_intent.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True), yaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True), showlegend=False)
-        fig_intent.update_traces(marker_line_width=0, marker_line_color='rgba(0,0,0,0)', width=0.6)
-        st.plotly_chart(fig_intent, use_container_width=True, config={'displayModeBar': False})
+        if not intent_data_for_chart.empty:
+            fig_intent = px.bar(intent_data_for_chart, y='Intent', x='Value', orientation='h', color='Intent',
+                                color_discrete_map={'Info Seeking': '#007aff', 'Complaint': '#ff9500', 'Service Request': '#5856d6', 'Feedback': '#ffcc00'})
+            fig_intent.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)',
+                                     plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True),
+                                     yaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True), showlegend=False)
+            fig_intent.update_traces(marker_line_width=0, marker_line_color='rgba(0,0,0,0)', width=0.6)
+            st.plotly_chart(fig_intent, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Intent data not available.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with col3:
+    with col3_snap:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("### Volume Trend (30 Days)")
-        fig_volume = px.line(vol_df_for_chart, x='Day', y='Volume', line_shape='spline')
-        fig_volume.update_traces(line_color='#007aff', fill='tozeroy', fillcolor='rgba(0,122,255,0.18)', mode='lines')
-        fig_volume.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True, tickmode='array', tickvals=[1, 5, 10, 15, 20, 25, 30], tickfont=dict(size=9)), yaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(size=9), range=[min(_volume_data_points) - 20 if _volume_data_points else 0, max(_volume_data_points) + 20 if _volume_data_points else 100]))
-        st.plotly_chart(fig_volume, use_container_width=True, config={'displayModeBar': False})
+        st.markdown(f"### Volume Trend ({len(_volume_data_points)} Days)")
+        if not vol_df_for_chart.empty:
+            fig_volume = px.line(vol_df_for_chart, x='Day', y='Volume', line_shape='spline')
+            fig_volume.update_traces(line_color='#007aff', fill='tozeroy', fillcolor='rgba(0,122,255,0.18)', mode='lines')
+            min_vol = min(_volume_data_points) - 20 if _volume_data_points else 0
+            max_vol = max(_volume_data_points) + 20 if _volume_data_points else 100
+            fig_volume.update_layout(height=230, margin=dict(l=0, r=10, t=20, b=20), paper_bgcolor='rgba(0,0,0,0)',
+                                     plot_bgcolor='rgba(0,0,0,0)',
+                                     xaxis=dict(title=None, showgrid=False, showline=False, showticklabels=True, tickmode='auto', tickfont=dict(size=9)),
+                                     yaxis=dict(title=None, showgrid=True, gridcolor='#e5e5ea', showline=False, showticklabels=True, tickfont=dict(size=9), range=[min_vol, max_vol]))
+            st.plotly_chart(fig_volume, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Volume data not available.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown(f"Positive sentiment leads at {live_sentiment_summary_for_llm.get('Positive','N/A')}. {list(live_intent_summary_for_llm.keys())[0] if live_intent_summary_for_llm else 'Info-seeking'} is a top intent. Volume shows steady increase.")
+    st.markdown(f"Positive sentiment leads at {live_sentiment_summary_for_llm.get('Positive','N/A')}. {list(live_intent_summary_for_llm.keys())[0] if live_intent_summary_for_llm else 'Info-seeking'} is a top intent. Volume shows trends from sheet data.")
 
 
     # Top Customer Themes
     st.markdown("## Top Customer Themes")
     theme_view = st.radio("View", ["Top 10", "Trending", "Emerging", "Declining"], horizontal=True, key="theme_view")
-    col1, col2 = st.columns(2)
+    col1_theme, col2_theme = st.columns(2)
 
-    with col1:
+    with col1_theme:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Top Positive Themes")
-        st.markdown("- Fast Customer Service")
-        st.markdown("- Easy Mobile Banking")
-        st.markdown("- Helpful Staff")
-        st.markdown('> "Support resolved my issue in minutes! So efficient."')
+        if positive_themes_list:
+            for theme_item in positive_themes_list:
+                st.markdown(f"- {theme_item[0]}") # Theme
+                if len(theme_item) > 1 and theme_item[1]: # Optional Quote
+                    st.markdown(f'> "{theme_item[1]}"')
+        else:
+            st.info("No positive themes data found.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with col2:
+    with col2_theme:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.markdown("### Top Negative Themes")
-        st.markdown("- App Technical Issues")
-        st.markdown("- Long Wait Times (Call)")
-        st.markdown("- Fee Transparency")
-        st.markdown('> "The app keeps crashing after the latest update. Very frustrating."')
+        if negative_themes_list:
+            for theme_item in negative_themes_list:
+                st.markdown(f"- {theme_item[0]}") # Theme
+                if len(theme_item) > 1 and theme_item[1]: # Optional Quote
+                    st.markdown(f'> "{theme_item[1]}"')
+        else:
+            st.info("No negative themes data found.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Opportunity Radar
     st.markdown("## Opportunity Radar")
     opportunity_view = st.radio("View", ["High Value", "Quick Wins", "Strategic"], horizontal=True, key="opportunity_view")
-    col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("""
-        **🎉 Delightful: Instant Card Activation**  
-        - 75 delight mentions this week (Sentiment: +0.95)  
-        - Keywords: "amazing", "so easy", "instant"  
-        - Action: Amplify in marketing? Benchmark?
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
+    if opportunity_radar_list:
+        num_opportunities = len(opportunity_radar_list)
+        cols_opportunity = st.columns(min(num_opportunities, 3)) # Max 3 columns, or fewer if less data
 
-    with col2:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("""
-        **💰 Cross-Sell: Mortgage Inquiries +15%**  
-        - Mortgage info seeking: +15% WoW  
-        - Related: Savings, Financial Planning  
-        - Action: Target with relevant mortgage info?
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
+        for i, opportunity in enumerate(opportunity_radar_list):
+            if i < 3 : # Display up to 3
+                with cols_opportunity[i % 3]:
+                    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                    # opportunity: [Category, Title, Detail1, Detail2, Action]
+                    category_icon = {"Delightful": "🎉", "Cross-Sell": "💰", "Service Excel": "⭐"}.get(opportunity[0], "💡")
+                    st.markdown(f"**{category_icon} {opportunity[0]}: {opportunity[1]}**") # Category: Title
+                    if opportunity[2]: st.markdown(f"- {opportunity[2]}") # Detail1
+                    if opportunity[3]: st.markdown(f"- {opportunity[3]}") # Detail2
+                    if opportunity[4]: st.markdown(f"- Action: {opportunity[4]}") # Action
+                    st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("No opportunity radar data found.")
 
-    with col3:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("""
-        **⭐ Service Excellence: Complex Issues**  
-        - 25 positive mentions for complex issue resolution  
-        - Agents: A, B, C praised  
-        - Action: Identify best practices? Recognize agents?
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
 
     # VIRA Chat Assistant
     st.markdown("## Chat with VIRA")
     if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "assistant", "content": "Hello! I'm VIRA, your AI assistant. How can I help with the dashboard today?"}
-        ]
+        st.session_state.messages = [{"role": "assistant", "content": "Hello! I'm VIRA, your AI assistant. How can I help with the dashboard today?"}]
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -490,26 +669,22 @@ if page == "Dashboard":
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             full_response = ""
-
-            # Prepare combined dashboard state for LLM
             dashboard_state_for_llm = {
-                **current_health_data, # contains score, trend, trend_label, time_period_label
+                **current_health_data,
                 "sentiment_summary": live_sentiment_summary_for_llm,
                 "intent_summary": live_intent_summary_for_llm,
                 "volume_summary": live_volume_summary_for_llm,
             }
-
             try:
-                for chunk in generate_llm_response(prompt, dashboard_state_for_llm):
+                for chunk in generate_llm_response(prompt, dashboard_state_for_llm, SYSTEM_PROMPT_VIRA):
                     full_response += chunk
-                    message_placeholder.markdown(full_response + "▌") # Typing effect
-                message_placeholder.markdown(full_response) # Final response
-            except Exception as e: # Catch any other unexpected errors from the generator
-                full_response = f"An unexpected error occurred: {str(e)}"
+                    message_placeholder.markdown(full_response + "▌")
+                message_placeholder.markdown(full_response)
+            except Exception as e:
+                full_response = f"An unexpected error occurred with LLM: {str(e)}"
                 message_placeholder.error(full_response)
-
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 
-else:
+else: # Other pages
     st.markdown(f"## {page}")
     st.write("This section is under development. Please select 'Dashboard' from the sidebar to view the main dashboard.")
