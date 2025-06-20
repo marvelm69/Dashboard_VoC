@@ -805,7 +805,6 @@ def render_alerts_widget():
 
 def render_hotspots_widget():
    """Render the predictive hotspots widget"""
-   st.markdown('<div class="metric-card">', unsafe_allow_html=True)
    st.markdown("### 🔮 Predictive Hotspots")
       
    # Emerging issues
@@ -842,7 +841,6 @@ def render_voice_snapshot(analytics_data, time_period):
    
    # Sentiment Distribution
    with col1:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
        st.markdown("### 😊 Sentiment Distribution")
        
        fig_sentiment = create_sentiment_chart(analytics_data['sentiment_data'])
@@ -859,7 +857,6 @@ def render_voice_snapshot(analytics_data, time_period):
    
    # Intent Distribution
    with col2:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
        st.markdown("### 🎯 Intent Distribution (Top 5)")
        
        fig_intent = create_intent_chart(analytics_data['intent_data'])
@@ -875,7 +872,6 @@ def render_voice_snapshot(analytics_data, time_period):
    
    # Volume Trend
    with col3:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
        st.markdown(f"### 📈 Volume Trend ({time_period})")
        
        fig_volume = create_volume_chart(analytics_data['volume_data'])
@@ -894,7 +890,6 @@ def render_customer_themes():
    col1, col2 = st.columns(2)
    
    with col1:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
        st.markdown("### 🌟 Top Positive Themes")
        
        positive_themes = [
@@ -915,7 +910,6 @@ def render_customer_themes():
        st.markdown('</div>', unsafe_allow_html=True)
    
    with col2:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
        st.markdown("### ⚠️ Top Negative Themes")
        
        negative_themes = [
@@ -942,7 +936,6 @@ def render_opportunity_radar():
    col1, col2, col3 = st.columns(3)
    
    with col1:
- 
        st.markdown("### 🎉 Delightful Features")
        st.markdown("""
        **Instant Card Activation**
@@ -957,7 +950,6 @@ def render_opportunity_radar():
        st.markdown('</div>', unsafe_allow_html=True)
    
    with col2:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
        st.markdown("### 💰 Cross-Sell Opportunities")
        st.markdown("""
        **Mortgage Inquiry Surge**
@@ -972,7 +964,6 @@ def render_opportunity_radar():
        st.markdown('</div>', unsafe_allow_html=True)
    
    with col3:
-       st.markdown('<div class="metric-card">', unsafe_allow_html=True)
        st.markdown("### ⭐ Service Excellence")
        st.markdown("""
        **Complex Issue Resolution**
