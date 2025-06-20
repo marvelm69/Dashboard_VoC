@@ -14,29 +14,39 @@ from dateutil.relativedelta import relativedelta # For more complex date manipul
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-# Constants for Google Sheets
-# SERVICE_ACCOUNT_FILE = 'key.json' # No longer needed
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-SPREADSHEET_ID = '1V5cRgnnN5GTFsD9bR05hLzsKRWkhdEy3LhuTvSnUyIM' # Your spreadsheet ID
+SPREADSHEET_ID = '1V5cRgnnN5GTFsD9bR05hLzsKRWkhdEy3LhuTvSnUyIM'
 RANGE_NAME = 'sheet1!A:H'
 
 @st.cache_data(ttl=600)
 def load_data_from_google_sheets():
-    """Loads data from Google Sheets using credentials from Streamlit Secrets."""
     try:
-        # Load the entire JSON string from secrets and parse it
-        creds_json_str = st.secrets["gcp_service_account_credentials"]
-        creds_info = json.loads(creds_json_str) # Parse the string into a Python dictionary
+        # Access individual fields from the TOML table
+        gcp_creds_table = st.secrets["gcp_service_account_credentials"]
+
+        # Reconstruct the JSON structure expected by from_service_account_info
+        creds_info = {
+            "type": gcp_creds_table["type"],
+            "project_id": gcp_creds_table["project_id"],
+            "private_key_id": gcp_creds_table["private_key_id"],
+            "private_key": gcp_creds_table["private_key"].replace('\\n', '\n'), # Important: unescape \n for from_service_account_info
+            "client_email": gcp_creds_table["client_email"],
+            "client_id": gcp_creds_table["client_id"],
+            "auth_uri": gcp_creds_table["auth_uri"],
+            "token_uri": gcp_creds_table["token_uri"],
+            "auth_provider_x509_cert_url": gcp_creds_table["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": gcp_creds_table["client_x509_cert_url"],
+            "universe_domain": gcp_creds_table["universe_domain"]
+        }
 
         creds = service_account.Credentials.from_service_account_info(
-            creds_info, scopes=SCOPES) # Use from_service_account_info
+            creds_info, scopes=SCOPES)
 
         service = build('sheets', 'v4', credentials=creds)
 
         result = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
         values = result.get('values', [])
-
         if not values:
             st.error("No data found in the Google Sheet.")
             return pd.DataFrame()
