@@ -1080,7 +1080,7 @@ def main():
    # Main content based on page selection
    if current_page == "Dashboard":
        # Dashboard header
-       st.markdown('<div class="dashboard-header">🏦 Voice of Customer Dashboard</div>')
+       st.markdown('<div class="dashboard-header">🏦 Voice of Customer Dashboard</div>', unsafe_allow_html=True)
        st.markdown("*Real-time Customer Experience Insights & Performance Analytics*")
        
        # Render filters
