@@ -1339,8 +1339,6 @@ def main():
        # >>> AKHIR BAGIAN YANG DIMODIFIKASI/DITAMBAHKAN UNTUK CUSTOMER THEMES <<<
        # =======================================================================
 
-       render_opportunity_radar() # Asumsi ini masih menggunakan data dummy atau logika sendiri
-
        dashboard_state = {
            **current_health_data,
            "time_period_label_llm": time_period,
