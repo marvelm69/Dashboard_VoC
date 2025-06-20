@@ -847,7 +847,7 @@ def render_filters(master_df):
 
 def render_health_score_widget(health_data):
     """Render the health score widget"""
-    st.markdown('''<div class="metric-card">
+    st.markdown('''
     <body>
 
     <div class="metric-card">
@@ -955,9 +955,9 @@ def render_health_score_widget(health_data):
         }
 
     </script>
-
-</body>
 </div>
+</body>
+
     ''', unsafe_allow_html=True) # Open metric-card
     # st.markdown("<h3>💚 Customer Health Score</h3>", unsafe_allow_html=True) # Card title
 
