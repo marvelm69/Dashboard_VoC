@@ -1066,105 +1066,143 @@ def render_vira_chat(dashboard_state):
 
 def main():
    """Main application function"""
-   # Apply custom styling
    apply_custom_css()
-   
-   # Load data
+
+   # --- Initialize session state for chat visibility ---
+   if 'chat_is_open' not in st.session_state:
+       st.session_state.chat_is_open = False # Chat is closed by default
+   if "messages" not in st.session_state: # For VIRA chat history
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": "🙋‍♀️ Halo! Saya VIRA, asisten AI Anda. Klik saya untuk memulai percakapan!"
+            }
+        ]
+   # --- End session state initialization ---
+
    with st.spinner("🔄 Loading data from Google Sheets..."):
        master_df = load_data_from_google_sheets()
-   
-   # Render sidebar and get page selection
+
    current_page = render_sidebar()
-   
-   # Main content based on page selection
+
    if current_page == "Dashboard":
-       # Dashboard header
        st.markdown('<div class="dashboard-header">🏦 Voice of Customer Dashboard</div>', unsafe_allow_html=True)
        st.markdown("*Real-time Customer Experience Insights & Performance Analytics*")
-       
-       # Render filters
-       time_period, selected_products, selected_channels = render_filters(master_df)
-       
-       # Apply filters to data
+
+       # --- FILTERS CONTAINER START ---
+       with st.container(): # Wrap filters in a container
+            st.markdown('<div class="filter-container">', unsafe_allow_html=True)
+            time_period, selected_products, selected_channels = render_filters(master_df)
+            st.markdown('</div>', unsafe_allow_html=True)
+       # --- FILTERS CONTAINER END ---
+
        filtered_df = master_df.copy()
-       filtered_df = apply_time_filter(filtered_df, time_period)
-       filtered_df = apply_product_filter(filtered_df, selected_products)
-       filtered_df = apply_channel_filter(filtered_df, selected_channels)
-       
-       # Process analytics data
+       if not filtered_df.empty:
+            filtered_df = apply_time_filter(filtered_df, time_period)
+            filtered_df = apply_product_filter(filtered_df, selected_products)
+            filtered_df = apply_channel_filter(filtered_df, selected_channels)
+
        analytics_data = process_filtered_data(filtered_df)
-       
-       # Get health score data
+
        health_score_data = generate_health_score_data()
        time_period_map = {
            "All Periods": "all", "Today": "today", "This Week": "week",
            "This Month": "month", "This Quarter": "quarter", "This Year": "year"
        }
        selected_time_key = time_period_map.get(time_period, "month")
-       current_health_data = health_score_data[selected_time_key].copy()
+       current_health_data = health_score_data.get(selected_time_key, health_score_data["month"]).copy()
        current_health_data['time_period_label'] = time_period
-       
-       # Dashboard widgets section
+
        st.markdown('<div class="section-header">📊 Dashboard Widgets</div>', unsafe_allow_html=True)
-       
-       col1, col2, col3 = st.columns(3)
-       
-       with col1:
-           render_health_score_widget(current_health_data)
-       
-       with col2:
-           render_alerts_widget()
-       
-       with col3:
-           render_hotspots_widget()
-       
-       # Customer voice snapshot
-       render_voice_snapshot(analytics_data, time_period)
-       
-       # Generate summary insights
-       if not filtered_df.empty:
-           summary_parts = []
-           sentiment_summary = analytics_data['sentiment_summary']
-           intent_summary = analytics_data['intent_summary']
-           
-           if 'Positif' in sentiment_summary:
-               positive_pct = sentiment_summary['Positif'].split('%')[0]
-               summary_parts.append(f"Sentimen positif mendominasi ({positive_pct}%)")
-           
-           if intent_summary and "Info" not in intent_summary:
-               top_intent = list(intent_summary.keys())[0]
-               summary_parts.append(f"intent '{top_intent}' paling sering muncul")
-           
-           if analytics_data['total_interactions'] > 0:
-               summary_parts.append(f"dengan total {analytics_data['total_interactions']} interaksi")
-           
-           if summary_parts:
-               st.info(f"📈 **Ringkasan**: {', '.join(summary_parts)} dalam periode {time_period.lower()}.")
-       else:
-           st.warning("⚠️ Tidak ada data yang tersedia untuk filter yang dipilih.")
-       
-       # Customer themes
-       render_customer_themes()
-       
-       # Opportunity radar
-       render_opportunity_radar()
-       
-       # Prepare dashboard state for VIRA
-       dashboard_state = {
+
+       # --- WIDGETS CONTAINER START ---
+       with st.container():
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                render_health_score_widget(current_health_data)
+                # The render_health_score_widget already includes its own closing div
+            with col2:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                render_alerts_widget()
+                # The render_alerts_widget already includes its own closing div
+            with col3:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                render_hotspots_widget()
+                # The render_hotspots_widget already includes its own closing div
+       # --- WIDGETS CONTAINER END ---
+
+       # --- REMOVED SECTIONS AS PER PREVIOUS REQUEST ---
+       # render_voice_snapshot(analytics_data, time_period)
+       # (Summary insights block also removed/commented previously)
+       # render_customer_themes()
+       # render_opportunity_radar()
+       # --- END OF REMOVED SECTIONS ---
+
+       dashboard_state_vira = {
            **current_health_data,
            "time_period_label_llm": time_period,
            'total_interactions': analytics_data.get('total_interactions', 'N/A'),
            'sentiment_summary': analytics_data.get('sentiment_summary', {}),
            'intent_summary': analytics_data.get('intent_summary', {}),
            'volume_summary': analytics_data.get('volume_summary', 'N/A'),
-           # Update VIRA's knowledge about alerts/hotspots
            'critical_alerts_summary': "The dashboard displays illustrative examples of critical alerts.",
            'emerging_hotspots_summary': "The dashboard shows example emerging customer hotspots."
        }
 
-       
-       # VIRA Chat
-       render_vira_chat(dashboard_state)
+       # --- VIRA CHAT TOGGLE AND INTERFACE ---
+       st.markdown("---") # Add a separator
+
+       # Create columns for a pseudo "bottom-right" feel for the button
+       # This is a bit of a hack for positioning within Streamlit's flow
+       empty_col, button_col = st.columns([0.85, 0.15]) # Adjust ratios as needed
+
+       with button_col:
+           if st.button("🤖 VIRA", key="toggle_vira_chat", help="Buka/Tutup Chat VIRA", use_container_width=True):
+               st.session_state.chat_is_open = not st.session_state.chat_is_open
+               # If closing, reset messages to a default "closed" state message if desired, or keep history
+               # if not st.session_state.chat_is_open and len(st.session_state.messages) > 1 :
+               #     st.session_state.messages = [
+               #         {
+               #             "role": "assistant",
+               #             "content": "🙋‍♀️ Halo! Saya VIRA. Klik tombol untuk memulai percakapan!"
+               #         }
+               #     ]
+
+
+       if st.session_state.chat_is_open:
+           # Use a container for the chat to give it a "window" feel
+           with st.container():
+                # Apply some inline style or a custom class for the chat window
+                # This is a bit limited without full CSS control over this specific container
+                st.markdown("""
+                <style>
+                    .vira-chat-window {
+                        /* position: fixed; /* This is what we CAN'T easily do reliably */
+                        /* bottom: 70px; /* For true FAB */
+                        /* right: 20px; /* For true FAB */
+                        max-height: 500px; /* Limit height */
+                        width: 100%; /* Full width of its container column */
+                        max-width: 450px; /* Or a fixed width for the chat window */
+                        border: 1px solid #ccc;
+                        border-radius: 10px;
+                        padding: 10px;
+                        background-color: #f9f9f9;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                        margin-left: auto; /* Try to push it right if in a wider column */
+                        margin-right: 0; /* Try to push it right */
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # To make the chat window appear more on the right if the main area is wide:
+                # We can try putting it in its own set of columns again.
+                chat_empty_col, chat_window_col, _ = st.columns([0.55, 0.4, 0.05]) # Adjust ratios
+                with chat_window_col:
+                    st.markdown('<div class="vira-chat-window">', unsafe_allow_html=True) # Apply class
+                    render_vira_chat(dashboard_state_vira)
+                    st.markdown('</div>', unsafe_allow_html=True)
+       # --- END VIRA CHAT ---
        
    else:
        # Other pages (placeholder)
