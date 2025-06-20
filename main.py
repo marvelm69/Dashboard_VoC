@@ -135,7 +135,7 @@ def load_data_from_google_sheets():
             "universe_domain": gcp_creds_table["universe_domain"]
         }
         creds = service_account.Credentials.from_service_account_info(creds_info, scopes=SCOPES)
-        [span_24](start_span)service = build('sheets', 'v4', credentials=creds)[span_24](end_span)
+        service = build('sheets', 'v4', credentials=creds)
         result = service.spreadsheets().values().get(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
         values = result.get('values', [])
 
