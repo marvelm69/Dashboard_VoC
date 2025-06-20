@@ -101,11 +101,10 @@ def apply_custom_css():
 
 
         /* Metric Cards - Specialized for top widgets */
-        .metric-card { /* Keeping your original class for the top 3 widgets */
-            background-color: #ffffff;
-            padding: 1.5rem;
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
+        .metric-card {
+            background-color: #ffffff !important;
+            padding: 1.5rem !important;
+            border: 1px solid #e0e0e0 !important;
             box-shadow: 0 1px 4px rgba(0,0,0,0.05);
             margin-bottom: 20px;
             transition: box-shadow 0.3s ease;
