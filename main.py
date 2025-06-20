@@ -12,11 +12,6 @@ from dateutil.relativedelta import relativedelta
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-# === TAMBAHKAN IMPOR INI ===
-from collections import Counter
-import re # Untuk regular expressions (sudah ada di kode sebelumnya, pastikan tidak duplikat)
-# ============================
-
 # ==============================================================================
 # CONFIGURATION & CONSTANTS
 # ==============================================================================
@@ -616,7 +611,7 @@ Selalu dasarkan jawaban Anda pada data yang diberikan dalam `dashboard_state`.
 Gunakan bahasa Indonesia yang sopan dan mudah dimengerti.
 Jika ada pertanyaan yang tidak dapat dijawab dari data dasbor, sampaikan dengan sopan bahwa informasi tersebut tidak tersedia.
 Berikan analisis yang ringkas namun mendalam.
-Jika ada pertanyaan di luar konmasked_text analisis Anda, sampaikan bahwa itu di luar kapabilitas Anda.
+Jika ada pertanyaan di luar konteks analisis Anda, sampaikan bahwa itu di luar kapabilitas Anda.
 """
 
 def initialize_ai_client():
@@ -790,91 +785,75 @@ def render_health_score_widget(health_data):
 
     st.markdown('</div>', unsafe_allow_html=True) # This closes the metric-card div
 
-def render_alerts_widget(): # Hapus parameter alerts_data
-   """Render the critical alerts widget (Hardcoded)"""
+def render_alerts_widget():
+   """Render the critical alerts widget"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
    st.markdown("### 🚨 Critical Alerts")
-
-   # Konten Hardcoded untuk Alerts
+      
+   # Critical alerts
    st.markdown('<div class="alert-critical">', unsafe_allow_html=True)
    st.markdown("""
-   **🔴 Sudden Spike in Negative Sentiment for MyBCA**
-   - Product: MyBCA
-   - Detail: 45% negative sentiment in the last 24 hours (150 mentions).
-   - Key Issues: Login failures, App crashes after update X.Y.
-   - **Suggestion**: Immediate technical review and rollback consideration.
+   **🔴 Sudden Spike in Negative Sentiment**
+   - Mobile App Update X.Y: 45% negative sentiment
+   - Volume: 150 mentions in last 3 hours
+   - Key Issues: Login failures, App crashes
+   - **Action Required**: Immediate technical review
    """)
    st.markdown('</div>', unsafe_allow_html=True)
-
+   
+   # High priority alerts
    st.markdown('<div class="alert-warning">', unsafe_allow_html=True)
    st.markdown("""
-   **🟡 High Churn Risk Pattern for Kartu Kredit**
-   - Product: Kartu Kredit
-   - Pattern: Repeated complaints about annual fee and customer service response time.
-   - Affected: ~12 distinct customer patterns identified this week.
-   - **Suggestion**: Proactive outreach to affected customers, review fee structure communication.
+   **🟡 High Churn Risk Pattern**
+   - Pattern: Repeated billing errors in Savings accounts
+   - Affected: 12 unique customer patterns identified
+   - Average sentiment: -0.8 (Very Negative)
+   - **Action**: Customer retention outreach recommended
    """)
    st.markdown('</div>', unsafe_allow_html=True)
-
-   # Tambahkan contoh lain jika perlu
-   # st.markdown('<div class="alert-warning">', unsafe_allow_html=True)
-   # st.markdown("""
-   # **🟡 Increased Complaints about ATM Availability**
-   # - Channel: ATM Network
-   # - Detail: 20% increase in complaints about 'ATM offline' or 'ATM no cash'.
-   # - Locations: Area X, Y, Z
-   # - **Suggestion**: Check ATM network status in affected areas, schedule maintenance.
-   # """)
-   # st.markdown('</div>', unsafe_allow_html=True)
-
+   
    col1, col2 = st.columns(2)
    with col1:
-       if st.button("🔍 View All Alerts", type="primary", key="view_all_alerts_btn_hc"): # Key bisa diganti jika perlu
-           st.info("This section would show more hardcoded examples or a link to a static report.")
-
+       if st.button("🔍 View All Alerts", type="primary"):
+           st.info("Redirecting to detailed alerts page...")
+   
    with col2:
-       if st.button("📋 Create Action Plan", type="secondary", key="create_action_plan_btn_hc"):
-           st.info("Action Plan feature coming soon!")
-
+       if st.button("📋 Create Action Plan", type="secondary"):
+           st.info("Opening action plan creator...")
+   
    st.markdown('</div>', unsafe_allow_html=True)
 
-def render_hotspots_widget(): # Hapus parameter hotspots_data
-   """Render the predictive hotspots widget (Hardcoded)"""
+def render_hotspots_widget():
+   """Render the predictive hotspots widget"""
    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-   st.markdown("### 🔮 Emerging Customer Hotspots") # Judul tetap
-
-   # Konten Hardcoded untuk Hotspots
-   st.markdown("**📈 Confusion about New Savings Account Interest Rates**")
-   st.markdown("- Detail: Increased mentions of 'interest rate', 'confused', 'how it works' related to new 'TabunganMAXI' product.")
-   st.markdown("- Impact: Medium. Potential for dissatisfaction if not addressed.")
-   st.markdown("- _Suggestion: Proactively send clearer communication, update FAQ, train CS agents._")
+   st.markdown("### 🔮 Predictive Hotspots")
+      
+   # Emerging issues
+   st.markdown("**🆕 New Overdraft Policy Confusion**")
+   st.markdown("- Impact Level: Medium 🟡")
+   st.markdown("- 'Confused' language patterns: +30% WoW")
+   st.markdown("- Common phrases: 'don't understand', 'how it works'")
+   st.markdown("- **Recommendation**: Create clearer policy explanation")
+   
    st.markdown("---")
-
-   st.markdown("**🆕 User Interface (UI) Feedback for Mobile Banking Update**")
-   st.markdown("- Detail: Mix of positive and negative feedback on new UI. Some users find it 'cleaner', others 'hard to navigate'.")
-   st.markdown("- Impact: Low-Medium. Monitor closely for consistent negative patterns.")
-   st.markdown("- _Suggestion: Gather specific UI pain points, consider A/B testing for problematic flows._")
-   st.markdown("---")
-
-   # st.markdown("**⚠️ Potential Issue: Delays in Loan Application Process**")
-   # st.markdown("- Detail: Early signs of increased mentions of 'waiting too long', 'slow process' for KPR applications.")
-   # st.markdown("- Impact: Low. Monitor application turnaround times.")
-   # st.markdown("- _Suggestion: Review current loan processing pipeline for bottlenecks._")
-   # st.markdown("---")
-
-
-   # Metrik bisa tetap hardcoded atau disesuaikan
-   st.markdown("---")
+   
+   st.markdown("**🌐 International Transfer UI Issues**")
+   st.markdown("- Impact Level: Low 🟢")
+   st.markdown("- Task abandonment rate: +15% MoM")
+   st.markdown("- Negative sentiment around 'Beneficiary Setup'")
+   st.markdown("- **Recommendation**: UI/UX review for international transfers")
+   
+   # Trend indicators
    col1, col2, col3 = st.columns(3)
    with col1:
-       st.metric("Emerging Topics", "2", delta="+1 vs last period") # Contoh delta statis
+       st.metric("Emerging Issues", "2", delta="1")
    with col2:
-       st.metric("Trending Topics", "5") # Contoh statis
+       st.metric("Trending Topics", "5", delta="2")
    with col3:
-       st.metric("Predicted Risks", "1") # Contoh statis
-
+       st.metric("Predicted Risks", "3", delta="-1")
+   
    st.markdown('</div>', unsafe_allow_html=True)
-    
+
 def render_voice_snapshot(analytics_data, time_period):
    """Render the customer voice snapshot section"""
    st.markdown('<div class="section-header">📊 Customer Voice Snapshot</div>', unsafe_allow_html=True)
@@ -1116,150 +1095,138 @@ def render_vira_chat(dashboard_state):
            """)
 
 # ==============================================================================
-# ADVANCED ANALYTICS & ALERTING FUNCTIONS
-# ==============================================================================
-
-def get_recent_data(df, days=1):
-    """Filters dataframe for recent data based on 'Date' column."""
-    if df.empty or 'Date' not in df.columns:
-        return pd.DataFrame()
-    cutoff_date = pd.Timestamp('today').normalize() - pd.Timedelta(days=days)
-    return df[df['Date'] >= cutoff_date]
-
-
-# ==============================================================================
 # MAIN APPLICATION
 # ==============================================================================
 
 def main():
    """Main application function"""
    # Apply custom styling
-   apply_custom_css() # Panggil CSS di awal
-
-   # --- LANGKAH 6: Inisialisasi session_state (jika belum ada) ---
-   # Ini sebaiknya dilakukan di awal, sebelum logika utama yang mungkin menggunakannya.
-   if 'prev_emerging_count' not in st.session_state:
-       st.session_state['prev_emerging_count'] = 0
-   if "messages" not in st.session_state: # Inisialisasi untuk VIRA chat jika belum ada
-       st.session_state.messages = [
-           {
-               "role": "assistant",
-               "content": "🙋‍♀️ Halo! Saya VIRA, asisten AI Anda untuk analisis Voice of Customer. "
-                         "Saya dapat membantu menganalisis data dasbor, memberikan insights, dan menjawab pertanyaan "
-                         "terkait performa customer experience. Ada yang bisa saya bantu hari ini?"
-           }
-       ]
-   # --- Akhir Langkah 6 ---
-
+   apply_custom_css()
+   
    # Load data
    with st.spinner("🔄 Loading data from Google Sheets..."):
        master_df = load_data_from_google_sheets()
-
+   
    # Render sidebar and get page selection
    current_page = render_sidebar()
-
+   
    # Main content based on page selection
    if current_page == "Dashboard":
        # Dashboard header
        st.markdown('<div class="dashboard-header">🏦 Voice of Customer Dashboard</div>', unsafe_allow_html=True)
        st.markdown("*Real-time Customer Experience Insights & Performance Analytics*")
-
+       
        # Render filters
        time_period, selected_products, selected_channels = render_filters(master_df)
-
+       
        # Apply filters to data
-       filtered_df = master_df.copy() # Mulai dengan salinan master_df
-       if not filtered_df.empty: # Hanya filter jika df tidak kosong
-            filtered_df = apply_time_filter(filtered_df, time_period)
-            filtered_df = apply_product_filter(filtered_df, selected_products)
-            filtered_df = apply_channel_filter(filtered_df, selected_channels)
-
-       # Process analytics data (menggunakan filtered_df)
+       filtered_df = master_df.copy()
+       filtered_df = apply_time_filter(filtered_df, time_period)
+       filtered_df = apply_product_filter(filtered_df, selected_products)
+       filtered_df = apply_channel_filter(filtered_df, selected_channels)
+       
+       # Process analytics data
        analytics_data = process_filtered_data(filtered_df)
-
+       
        # Get health score data
        health_score_data = generate_health_score_data()
        time_period_map = {
            "All Periods": "all", "Today": "today", "This Week": "week",
            "This Month": "month", "This Quarter": "quarter", "This Year": "year"
        }
-       selected_time_key = time_period_map.get(time_period, "month") # default ke 'month' jika tidak cocok
-       current_health_data = health_score_data.get(selected_time_key, health_score_data["month"]).copy() # Pastikan selected_time_key ada
+       selected_time_key = time_period_map.get(time_period, "month")
+       current_health_data = health_score_data[selected_time_key].copy()
        current_health_data['time_period_label'] = time_period
-
+       
        # Dashboard widgets section
        st.markdown('<div class="section-header">📊 Dashboard Widgets</div>', unsafe_allow_html=True)
-
+       
        col1, col2, col3 = st.columns(3)
-
-       # --- LANGKAH 5: Memanggil widget dengan data yang sudah dikalkulasi ---
+       
        with col1:
            render_health_score_widget(current_health_data)
-
+       
        with col2:
-           render_alerts_widget() # Mengirimkan data alerts
-
+           render_alerts_widget()
+       
        with col3:
-           render_hotspots_widget() # Mengirimkan data hotspots
-       # --- Akhir Langkah 5 ---
-
-       # Customer voice snapshot (menggunakan analytics_data dari filtered_df)
+           render_hotspots_widget()
+       
+       # Customer voice snapshot
        render_voice_snapshot(analytics_data, time_period)
-
-       # Generate summary insights (berdasarkan filtered_df)
+       
+       # Generate summary insights
        if not filtered_df.empty:
            summary_parts = []
-           sentiment_summary = analytics_data.get('sentiment_summary', {})
-           intent_summary = analytics_data.get('intent_summary', {})
-
-           if 'Positif' in sentiment_summary and '%' in sentiment_summary['Positif']:
+           sentiment_summary = analytics_data['sentiment_summary']
+           intent_summary = analytics_data['intent_summary']
+           
+           if 'Positif' in sentiment_summary:
                positive_pct = sentiment_summary['Positif'].split('%')[0]
                summary_parts.append(f"Sentimen positif mendominasi ({positive_pct}%)")
-
-           if intent_summary and "Info" not in intent_summary and intent_summary:
+           
+           if intent_summary and "Info" not in intent_summary:
                top_intent = list(intent_summary.keys())[0]
                summary_parts.append(f"intent '{top_intent}' paling sering muncul")
-
-           if analytics_data.get('total_interactions', 0) > 0:
+           
+           if analytics_data['total_interactions'] > 0:
                summary_parts.append(f"dengan total {analytics_data['total_interactions']} interaksi")
-
+           
            if summary_parts:
-               st.info(f"📈 **Ringkasan**: {', '.join(summary_parts)} dalam periode {time_period.lower()} untuk filter yang dipilih.")
-       elif master_df.empty: # Jika master_df kosong dari awal
-            st.warning("⚠️ Tidak ada data yang dimuat dari Google Sheets.")
-       else: # Jika filtered_df kosong tapi master_df ada isinya
-           st.warning("⚠️ Tidak ada data yang tersedia untuk filter yang dipilih saat ini.")
-
-       # Customer themes (static content for now)
+               st.info(f"📈 **Ringkasan**: {', '.join(summary_parts)} dalam periode {time_period.lower()}.")
+       else:
+           st.warning("⚠️ Tidak ada data yang tersedia untuk filter yang dipilih.")
+       
+       # Customer themes
        render_customer_themes()
-
-       # Opportunity radar (static content for now)
+       
+       # Opportunity radar
        render_opportunity_radar()
-
+       
        # Prepare dashboard state for VIRA
-       dashboard_state_vira = { # Ganti nama variabel agar tidak konflik
+       dashboard_state = {
            **current_health_data,
-           "time_period_label_llm": time_period, # Sudah benar
-           # Ambil data dari analytics_data yang berbasis filtered_df untuk VIRA
-           'total_interactions': analytics_data.get('total_interactions', 'N/A'),
-           'sentiment_summary': analytics_data.get('sentiment_summary', {}),
-           'intent_summary': analytics_data.get('intent_summary', {}),
-           'volume_summary': analytics_data.get('volume_summary', 'N/A'),
-           # Anda bisa tambahkan ringkasan alerts/hotspots jika ingin VIRA mengetahuinya
-           'critical_alerts_summary': f"{len(all_critical_alerts)} critical alerts identified." if all_critical_alerts else "No critical alerts.",
-           'emerging_hotspots_summary': f"{len(emerging_issues_hotspots)} emerging hotspots identified." if emerging_issues_hotspots else "No emerging hotspots."
+           "time_period_label_llm": time_period,
+           **analytics_data
        }
-
+       
        # VIRA Chat
-       render_vira_chat(dashboard_state_vira) # Gunakan variabel yang sudah diupdate
-
+       render_vira_chat(dashboard_state)
+       
    else:
        # Other pages (placeholder)
        st.markdown('<div class="dashboard-header">🚧 Coming Soon</div>', unsafe_allow_html=True)
        st.markdown(f"## {current_page}")
        st.info(f"Halaman {current_page} sedang dalam pengembangan. Silakan pilih 'Dashboard' untuk melihat dashboard utama.")
-
-       # ... (kode placeholder untuk halaman lain) ...
+       
+       # Add some placeholder content based on page
+       if current_page == "Analytics":
+           st.markdown("### 📊 Advanced Analytics")
+           st.markdown("- Detailed sentiment analysis")
+           st.markdown("- Customer journey mapping")
+           st.markdown("- Predictive modeling")
+           st.markdown("- Custom report generation")
+       
+       elif current_page == "Feedback":
+           st.markdown("### 💬 Customer Feedback")
+           st.markdown("- Feedback collection management")
+           st.markdown("- Response tracking")
+           st.markdown("- Satisfaction surveys")
+           st.markdown("- Feedback categorization")
+       
+       elif current_page == "Alerts":
+           st.markdown("### 🚨 Alert Management")
+           st.markdown("- Real-time alert configuration")
+           st.markdown("- Escalation procedures")
+           st.markdown("- Alert history")
+           st.markdown("- Performance monitoring")
+       
+       elif current_page == "Reports":
+           st.markdown("### 📈 Reporting")
+           st.markdown("- Executive dashboards")
+           st.markdown("- Scheduled reports")
+           st.markdown("- Custom analytics")
+           st.markdown("- Data export capabilities")
 
 # ==============================================================================
 # APPLICATION ENTRY POINT
