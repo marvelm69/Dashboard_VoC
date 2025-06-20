@@ -14,17 +14,22 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 # Constants for Google Sheets
-SERVICE_ACCOUNT_FILE = 'key.json' # Make sure this file is in the same directory or provide the full path
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly'] # Readonly scope is sufficient
+# SERVICE_ACCOUNT_FILE = 'key.json' # No longer needed
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SPREADSHEET_ID = '1V5cRgnnN5GTFsD9bR05hLzsKRWkhdEy3LhuTvSnUyIM' # Your spreadsheet ID
-RANGE_NAME = 'sheet1!A:H' # Adjust if your sheet name or data range is different
+RANGE_NAME = 'sheet1!A:H'
 
-@st.cache_data(ttl=600) # Cache data for 10 minutes
+@st.cache_data(ttl=600)
 def load_data_from_google_sheets():
-    """Loads data from Google Sheets and returns a Pandas DataFrame."""
+    """Loads data from Google Sheets using credentials from Streamlit Secrets."""
     try:
-        creds = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        # Load the entire JSON string from secrets and parse it
+        creds_json_str = st.secrets["gcp_service_account_credentials"]
+        creds_info = json.loads(creds_json_str) # Parse the string into a Python dictionary
+
+        creds = service_account.Credentials.from_service_account_info(
+            creds_info, scopes=SCOPES) # Use from_service_account_info
+
         service = build('sheets', 'v4', credentials=creds)
 
         result = service.spreadsheets().values().get(
@@ -35,30 +40,26 @@ def load_data_from_google_sheets():
             st.error("No data found in the Google Sheet.")
             return pd.DataFrame()
         else:
-            # Assuming the first row is the header
             df = pd.DataFrame(values[1:], columns=values[0])
-            # Data Cleaning and Preparation
             if 'Date' in df.columns:
-                df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y', errors='coerce') # Adjust format if needed
-                df.dropna(subset=['Date'], inplace=True) # Drop rows where date conversion failed
+                df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y', errors='coerce')
+                df.dropna(subset=['Date'], inplace=True)
             else:
                 st.warning("Column 'Date' not found in Google Sheet. Time filtering will not work correctly.")
-                # Add a dummy date column if you want to proceed without time filtering for some reason
-                # df['Date'] = pd.Timestamp('now').normalize()
-
-            # Standardize product and channel names (e.g., to lowercase for easier filtering)
             if 'Product' in df.columns:
                 df['Product'] = df['Product'].astype(str).str.lower().str.replace(" ", "_")
             if 'Channel' in df.columns:
                 df['Channel'] = df['Channel'].astype(str).str.lower().str.replace(" ", "_")
             if 'Sentimen' in df.columns:
-                df['Sentimen'] = df['Sentimen'].astype(str).str.capitalize() # E.g., Positif, Negatif
+                df['Sentimen'] = df['Sentimen'].astype(str).str.capitalize()
             if 'Intent' in df.columns:
                 df['Intent'] = df['Intent'].astype(str)
-
             return df
-    except FileNotFoundError:
-        st.error(f"Service account file '{SERVICE_ACCOUNT_FILE}' not found. Please ensure it's in the correct path.")
+    except KeyError as e:
+        st.error(f"Missing secret: {e}. Please ensure 'gcp_service_account_credentials' is set in your Streamlit secrets.")
+        return pd.DataFrame()
+    except json.JSONDecodeError:
+        st.error("Error decoding GCP credentials from Streamlit secrets. Please check the format in secrets.toml.")
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Error loading data from Google Sheets: {e}")
