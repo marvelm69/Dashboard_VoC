@@ -732,7 +732,6 @@ def render_filters(master_df):
 
 def render_health_score_widget(health_data):
     """Render the health score widget"""
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.markdown("### 💚 Customer Health Score")
 
     col1, col2 = st.columns([1, 2])
@@ -767,11 +766,9 @@ def render_health_score_widget(health_data):
 
 def render_alerts_widget():
    """Render the critical alerts widget"""
-   st.markdown('<div class="metric-card">', unsafe_allow_html=True)
    st.markdown("### 🚨 Critical Alerts")
       
    # Critical alerts
-   st.markdown('<div class="alert-critical">', unsafe_allow_html=True)
    st.markdown("""
    **🔴 Sudden Spike in Negative Sentiment**
    - Mobile App Update X.Y: 45% negative sentiment
@@ -782,7 +779,6 @@ def render_alerts_widget():
    st.markdown('</div>', unsafe_allow_html=True)
    
    # High priority alerts
-   st.markdown('<div class="alert-warning">', unsafe_allow_html=True)
    st.markdown("""
    **🟡 High Churn Risk Pattern**
    - Pattern: Repeated billing errors in Savings accounts
