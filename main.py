@@ -847,148 +847,43 @@ def render_filters(master_df):
 
 def render_health_score_widget(health_data):
     """Render the health score widget"""
-    st.markdown('''<div class="metric-card">
-    <body>
-        <h3>💚 Customer Health Score</h3>
+    # INI DIA PEMBUKA KOTAKNYA
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True) # Open metric-card
 
-        <div class="score-trend-container">
-            <div class="score-column">
-                <div class="metric-value" id="healthScoreValue">84%</div>
+    st.markdown("<h3>💚 Customer Health Score</h3>", unsafe_allow_html=True) # Card title
+
+    # Display score and trend more prominently
+    col_score, col_trend_text = st.columns([2,3])
+    with col_score:
+        st.markdown(f'<div class="metric-value">{health_data["score"]}%</div>', unsafe_allow_html=True)
+
+    with col_trend_text:
+        trend_icon = "📈" if health_data["trend_positive"] else "📉"
+        trend_class = "metric-trend-positive" if health_data["trend_positive"] else "metric-trend-negative"
+        st.markdown(f'''
+            <div class="metric-trend-container">
+                <span class="{trend_class}">{trend_icon} {health_data["trend"]}</span><br>
+                <span style="font-size:0.8em; color: #666;">{health_data["trend_label"]}</span>
             </div>
-            <div class="trend-column">
-                <div class="metric-trend-container">
-                    <span id="healthScoreTrendIcon" class="metric-trend-positive">📈 </span>
-                    <span id="healthScoreTrendValue" class="metric-trend-positive">+2.5%</span><br>
-                    <span id="healthScoreTrendLabel" class="trend-label">vs. yesterday</span>
-                </div>
-            </div>
-        </div>
+        ''', unsafe_allow_html=True)
 
-        <div id="healthScoreChart" class="chart-container"></div>
+    # Health score chart
+    fig_health = create_health_score_chart(health_data)
+    st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
 
-        <div id="healthScoreInterpretation" class="alert alert-success">
-            🎉 Excellent customer satisfaction! Keep up the great work. ✅
-        </div>
-    </div>
+    # Health score interpretation
+    score = health_data["score"]
+    if score >= 80:
+        st.success("🎉 Excellent customer satisfaction! Keep up the great work.", icon="✅")
+    elif score >= 70:
+        st.info("👍 Good customer satisfaction with room for improvement.", icon="💡")
+    elif score >= 60:
+        st.warning("⚠️ Moderate satisfaction. Consider addressing key issues.", icon="🔍")
+    else:
+        st.error("🚨 Low satisfaction detected. Immediate action recommended.", icon="🔥")
 
-    <script>
-        // --- DATA (Simulating health_data from Python) ---
-        const health_data_today = {
-            labels: ["9 AM", "11 AM", "1 PM", "3 PM", "5 PM", "7 PM", "9 PM"],
-            values: [78, 76, 80, 79, 81, 83, 84],
-            score: 84,
-            trend: "+2.5%",
-            trend_positive: true,
-            trend_label: "vs. yesterday"
-        };
-
-        // You would select which health_data based on time period in a real app
-        const current_health_data = health_data_today;
-
-
-        // --- Update dynamic elements (score, trend) ---
-        document.getElementById('healthScoreValue').textContent = current_health_data.score + '%';
-        const trendIconEl = document.getElementById('healthScoreTrendIcon');
-        const trendValueEl = document.getElementById('healthScoreTrendValue');
-
-        trendIconEl.textContent = current_health_data.trend_positive ? "📈 " : "📉 ";
-        trendValueEl.textContent = current_health_data.trend;
-        trendValueEl.className = current_health_data.trend_positive ? 'metric-trend-positive' : 'metric-trend-negative';
-        document.getElementById('healthScoreTrendLabel').textContent = current_health_data.trend_label;
-
-
-        // --- Plotly Chart (Replicating create_health_score_chart) ---
-        const healthScoreChartData = [{
-            x: current_health_data.labels,
-            y: current_health_data.values,
-            mode: 'lines+markers',
-            fill: 'tozeroy',
-            fillcolor: 'rgba(52,199,89,0.2)', // Light green fill
-            line: { color: '#34c759', width: 3 }, // Green line
-            marker: { size: 8, color: '#34c759' },
-            name: 'Health Score'
-        }];
-
-        const healthScoreChartLayout = {
-            height: 200,
-            margin: { l: 30, r: 10, t: 10, b: 30 }, // Adjusted margins for axis labels
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)',
-            xaxis: {
-                showgrid: false,
-                showline: false,
-                showticklabels: true,
-                tickfont: { color: '#4a4a4f', size: 10 }
-            },
-            yaxis: {
-                showgrid: true,
-                gridcolor: 'rgba(229,229,234,0.5)',
-                showline: false,
-                showticklabels: true,
-                tickfont: { color: '#4a4a4f', size: 10 },
-                // Calculate range dynamically or set reasonable fixed one
-                range: [Math.min(...current_health_data.values) - 2, Math.max(...current_health_data.values) + 2]
-            },
-            showlegend: false // Hiding legend as there's only one trace
-        };
-
-        Plotly.newPlot('healthScoreChart', healthScoreChartData, healthScoreChartLayout, {displayModeBar: false});
-
-
-        // --- Health Score Interpretation ---
-        const score = current_health_data.score;
-        const interpretationEl = document.getElementById('healthScoreInterpretation');
-        if (score >= 80) {
-            interpretationEl.className = 'alert alert-success';
-            interpretationEl.innerHTML = "🎉 Excellent customer satisfaction! Keep up the great work. ✅";
-        } else if (score >= 70) {
-            interpretationEl.className = 'alert alert-info';
-            interpretationEl.innerHTML = "👍 Good customer satisfaction with room for improvement. 💡";
-        } else if (score >= 60) {
-            interpretationEl.className = 'alert alert-warning';
-            interpretationEl.innerHTML = "⚠️ Moderate satisfaction. Consider addressing key issues. 🔍";
-        } else {
-            interpretationEl.className = 'alert alert-danger';
-            interpretationEl.innerHTML = "🚨 Low satisfaction detected. Immediate action recommended. 🔥";
-        }
-
-    </script>
-</body>
-
-    ''', unsafe_allow_html=True) # Open metric-card
-    # st.markdown("<h3>💚 Customer Health Score</h3>", unsafe_allow_html=True) # Card title
-
-    # # Display score and trend more prominently
-    # col_score, col_trend_text = st.columns([2,3])
-    # with col_score:
-    #     st.markdown(f'<div class="metric-value">{health_data["score"]}%</div>', unsafe_allow_html=True)
-
-    # with col_trend_text:
-    #     trend_icon = "📈" if health_data["trend_positive"] else "📉"
-    #     trend_class = "metric-trend-positive" if health_data["trend_positive"] else "metric-trend-negative"
-    #     st.markdown(f'''
-    #         <div class="metric-trend-container">
-    #             <span class="{trend_class}">{trend_icon} {health_data["trend"]}</span><br>
-    #             <span style="font-size:0.8em; color: #666;">{health_data["trend_label"]}</span>
-    #         </div>
-    #     ''', unsafe_allow_html=True)
-
-    # # Health score chart
-    # fig_health = create_health_score_chart(health_data)
-    # st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
-
-    # # Health score interpretation
-    # score = health_data["score"]
-    # if score >= 80:
-    #     st.success("🎉 Excellent customer satisfaction! Keep up the great work.", icon="✅")
-    # elif score >= 70:
-    #     st.info("👍 Good customer satisfaction with room for improvement.", icon="💡")
-    # elif score >= 60:
-    #     st.warning("⚠️ Moderate satisfaction. Consider addressing key issues.", icon="🔍")
-    # else:
-    #     st.error("🚨 Low satisfaction detected. Immediate action recommended.", icon="🔥")
-
-    # st.markdown('</div>', unsafe_allow_html=True) # Close metric-card
+    # DAN INI DIA PENUTUP KOTAKNYA
+    st.markdown('</div>', unsafe_allow_html=True) # Close metric-card
 
 def render_alerts_widget():
    """Render the critical alerts widget"""
