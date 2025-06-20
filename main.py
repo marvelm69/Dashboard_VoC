@@ -766,22 +766,22 @@ def render_health_score_widget(health_data):
            unsafe_allow_html=True
        )
    
-   # Health score chart
-   fig_health = create_health_score_chart(health_data)
-   st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
+   	# Health score chart
+   	fig_health = create_health_score_chart(health_data)
+   	st.plotly_chart(fig_health, use_container_width=True, config={'displayModeBar': False})
    
-   # Health score interpretation
-   score = health_data["score"]
-   if score >= 80:
-       st.success("🎉 Excellent customer satisfaction! Keep up the great work.")
-   elif score >= 70:
-       st.info("👍 Good customer satisfaction with room for improvement.")
-   elif score >= 60:
-       st.warning("⚠️ Moderate satisfaction. Consider addressing key issues.")
-   else:
-       st.error("🚨 Low satisfaction detected. Immediate action recommended.")
+   	# Health score interpretation
+   	score = health_data["score"]
+   	if score >= 80:
+       		st.success("🎉 Excellent customer satisfaction! Keep up the great work.")
+   	elif score >= 70:
+       		st.info("👍 Good customer satisfaction with room for improvement.")
+   	elif score >= 60:
+       		st.warning("⚠️ Moderate satisfaction. Consider addressing key issues.")
+   	else:
+       		st.error("🚨 Low satisfaction detected. Immediate action recommended.")
    
-   st.markdown('</div>', unsafe_allow_html=True)
+   	st.markdown('</div>', unsafe_allow_html=True)
 
 def render_alerts_widget():
    """Render the critical alerts widget"""
