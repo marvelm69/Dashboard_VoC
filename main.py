@@ -68,13 +68,13 @@ def apply_custom_css():
             padding: 1.5rem; /* Consistent padding */
             border-radius: 10px;
             border: 1px solid #e0e0e0; /* Subtle border */
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05); /* Even softer shadow */
             margin-bottom: 20px;
             transition: box-shadow 0.3s ease;
         }
 
         .metric-card:hover {
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* Slightly more pronounced on hover */
         }
 
         /* Headers and Titles */
@@ -87,29 +87,30 @@ def apply_custom_css():
         }
 
         .section-header {
-            font-size: 1.4rem; /* Adjusted size */
+            font-size: 1.3rem; /* Slightly smaller */
             font-weight: 600;
-            color: #334155; /* Dark slate gray */
-            border-bottom: 2px solid #007bff; /* Professional blue accent */
-            padding-bottom: 0.5rem;
-            margin: 2rem 0 1.5rem 0;
+            color: #1a253c; /* Match dashboard header color */
+            /* border-bottom: 2px solid #007bff; */ /* Removing border bottom for a cleaner look */
+            padding-bottom: 0.3rem;
+            margin: 2.5rem 0 1.2rem 0; /* Adjust margins */
+            /* text-transform: uppercase; */ /* Optional: for a more distinct look */
+            /* letter-spacing: 0.5px; */ /* Optional */
         }
 
         /* Buttons */
         .stButton > button {
-            background-color: #007bff; /* Primary blue */
+            background-color: #007bff;
             color: white;
-            border-radius: 6px; /* Standard button radius */
+            border-radius: 5px; /* Slightly less rounded for a sharper look */
             border: none;
-            padding: 8px 16px; /* Standard padding */
+            padding: 9px 18px; /* Adjusted padding */
             font-weight: 500;
-            transition: background-color 0.3s ease;
+            transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Subtle shadow for depth */
         }
-
         .stButton > button:hover {
-            background-color: #0056b3; /* Darker blue on hover */
-            transform: none; /* Remove previous transform */
-            box-shadow: 0 2px 5px rgba(0, 91, 179, 0.3);
+            background-color: #0056b3;
+            box-shadow: 0 2px 4px rgba(0, 91, 179, 0.2); /* Slightly more shadow on hover */
         }
 
         /* Metric Values */
@@ -1166,8 +1167,15 @@ def main():
        dashboard_state = {
            **current_health_data,
            "time_period_label_llm": time_period,
-           **analytics_data
+           'total_interactions': analytics_data.get('total_interactions', 'N/A'),
+           'sentiment_summary': analytics_data.get('sentiment_summary', {}),
+           'intent_summary': analytics_data.get('intent_summary', {}),
+           'volume_summary': analytics_data.get('volume_summary', 'N/A'),
+           # Update VIRA's knowledge about alerts/hotspots
+           'critical_alerts_summary': "The dashboard displays illustrative examples of critical alerts.",
+           'emerging_hotspots_summary': "The dashboard shows example emerging customer hotspots."
        }
+
        
        # VIRA Chat
        render_vira_chat(dashboard_state)
