@@ -878,8 +878,6 @@ def render_filters(master_df):
 def render_health_score_widget(health_data):
     """Render the health score widget"""
     # INI DIA PEMBUKA KOTAKNYA
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True) # Open metric-card
-
     st.markdown("<h3>💚 Customer Health Score</h3>", unsafe_allow_html=True) # Card title
 
     # Display score and trend more prominently
@@ -917,7 +915,6 @@ def render_health_score_widget(health_data):
 
 def render_alerts_widget():
    """Render the critical alerts widget"""
-   st.markdown('<div class="metric-card">', unsafe_allow_html=True) # Open metric-card
    st.markdown("<h3>🚨 Critical Alerts</h3>", unsafe_allow_html=True) # Card title
 
    # Critical alert item
@@ -961,7 +958,7 @@ def render_alerts_widget():
 
 def render_hotspots_widget():
    """Render the predictive hotspots widget"""
-   st.markdown('<div class="metric-card">', unsafe_allow_html=True) # Open metric-card
+    # Open metric-card
    st.markdown("<h3>🔮 Predictive Hotspots</h3>", unsafe_allow_html=True) # Card title
 
    # Emerging issues
